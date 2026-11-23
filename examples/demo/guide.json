@@ -1,0 +1,596 @@
+{
+  "project": {
+    "name": "Showpass",
+    "source": "the SQL files in `db/migrations/`",
+    "footer": "Source of truth: the SQL files in `db/migrations/`. This is a synthetic example schema that ships with the plugin; no real company's data is described here.",
+    "code": ["sql"]
+  },
+  "hub": "organizations",
+  "joinExample": ["attendees", "venues"],
+  "labels": {
+    "softDeleteWhy": "The row is hidden straight away (`deleted_at`). The nightly purge job removes it for good after 30 days."
+  },
+  "badges": {
+    "stored counts": "A running total kept on the row so the ticket page doesn't count rows on every view. Moved by the checkout transaction, repaired nightly.",
+    "soft delete": "Deleting sets `deleted_at` and hides the row. Nothing is removed until the purge job runs."
+  },
+  "highlight": {
+    "label": "new",
+    "short": "added in migration 014",
+    "note": "Added in migration 014 (the waitlist and mobile check-in release).",
+    "tables": ["user_devices", "waitlist_entries"],
+    "columns": ["ticket_types.max_per_order"],
+    "indexes": ["check_ins_one_ok_per_attendee"]
+  },
+  "areas": [
+    {
+      "id": "tenants",
+      "name": "Organizations & people",
+      "desc": "Who sells tickets, and who may act for them.",
+      "tables": ["organizations", "org_members", "users", "user_devices"]
+    },
+    {
+      "id": "places",
+      "name": "Venues & seating",
+      "desc": "Where an event happens, and how the room is split up.",
+      "tables": ["venues", "seating_zones"]
+    },
+    {
+      "id": "catalogue",
+      "name": "Events & tickets on sale",
+      "desc": "What is for sale: the event, its sessions, its ticket types and its codes.",
+      "tables": ["events", "event_sessions", "ticket_types", "discount_codes"]
+    },
+    {
+      "id": "sales",
+      "name": "Orders & tickets sold",
+      "desc": "A basket becomes an order, and an order becomes tickets with names on them.",
+      "tables": ["orders", "order_lines", "attendees"]
+    },
+    {
+      "id": "doors",
+      "name": "At the door",
+      "desc": "Scanning on the night, and the queue for sold-out tickets.",
+      "tables": ["check_ins", "waitlist_entries"]
+    },
+    {
+      "id": "money",
+      "name": "Money in and out",
+      "desc": "Charges from buyers, refunds back to them, and payouts to organizers.",
+      "tables": ["payments", "refunds", "payout_batches"]
+    },
+    {
+      "id": "platform",
+      "name": "Messaging & audit",
+      "desc": "What the platform sent, what it tried to send, and who changed what.",
+      "tables": ["notifications", "webhook_deliveries", "audit_log"]
+    }
+  ],
+  "tables": {
+    "attendees": {
+      "purpose": "One row per ticket, with the name that will be checked at the door.",
+      "columns": {
+        "event_id": "Copied from the order so door scanning never has to join through `orders`",
+        "order_id": "With `line_no`, the order line this ticket was bought on",
+        "line_no": "Part of the link to `order_lines`, not a number the buyer sees",
+        "email": "Where this ticket was sent. NULL when the buyer kept all tickets in their own name",
+        "barcode": "Printed on the ticket and scanned at the door. Unique across every event",
+        "seat_label": "Set only for `reserved` ticket types; NULL for general admission",
+        "status": "`transferred` means the name changed, not that the ticket moved order",
+        "transferred_at": "Last time the name on the ticket was changed"
+      },
+      "notes": [
+        "Buying three tickets on one line creates three rows here, one per seat.",
+        "Changing the name on a ticket updates this row. The order and its totals never change."
+      ]
+    },
+    "audit_log": {
+      "purpose": "One row per change an organizer or admin made.",
+      "columns": {
+        "actor_user_id": "NULL for changes made by a background job or by support tooling",
+        "entity_type": "Table name, as written in the migrations",
+        "entity_id": "The row's `id` in `entity_type`. Deliberately not a foreign key, so the log outlives the row",
+        "before": "The changed columns only, not the whole row",
+        "after": "The changed columns only, not the whole row",
+        "ip": "Of the request that made the change, when there was one"
+      },
+      "notes": ["Append only. Nothing in the application updates or deletes a row here."]
+    },
+    "check_ins": {
+      "purpose": "One row per scan at the door, including the scans that were turned away.",
+      "columns": {
+        "checked_in_by": "The door staff member. NULL once their account is deleted",
+        "device_label": "Whatever the scanning app calls itself, e.g. `Gate B iPad`",
+        "result": "Only `ok` lets someone in. The rest are kept so the door can be audited"
+      },
+      "notes": [
+        "A failed scan is a row too. Counting people in means counting `result = 'ok'`.",
+        "`event_id` is denormalised from `attendees` so the door query stays on one table."
+      ]
+    },
+    "discount_codes": {
+      "purpose": "One row per code a buyer can type at checkout.",
+      "columns": {
+        "event_id": "NULL for a code that works on every event the organization sells",
+        "code": "Compared case-insensitively by the application; stored as typed",
+        "percent_off": "Whole percent, 1–100. Set only when `kind = 'percent'`",
+        "amount_off_cents": "Set only when `kind = 'amount'`, in the order's currency",
+        "max_redemptions": "NULL means unlimited",
+        "redemption_count": "Raised inside the checkout transaction, so two buyers can't pass the limit"
+      },
+      "badges": ["stored counts"]
+    },
+    "event_sessions": {
+      "purpose": "One row per sitting of an event that runs more than once.",
+      "columns": {
+        "seating_zone_id": "Set when the session only uses part of the venue",
+        "position": "Display order; the application renumbers from 0 on every save"
+      },
+      "notes": ["A single-sitting event has no row here. Nothing is sold per session yet."]
+    },
+    "events": {
+      "purpose": "One row per event on sale.",
+      "columns": {
+        "venue_id": "NULL for an online-only event",
+        "created_by": "The organizer who first saved it. NULL once their account is deleted",
+        "slug": "Used in the public URL, unique inside the organization",
+        "status": "`sold_out` is set by the checkout job, not by hand",
+        "timezone": "IANA name. All the timestamps are absolute; this is how they are shown",
+        "doors_open_at": "NULL means doors open at `starts_at`",
+        "cancelled_at": "Set together with `status = 'cancelled'`; refunds are queued from here"
+      },
+      "notes": [
+        "An event can't be deleted while an organization still exists for it, and the organization can't be deleted while it has events.",
+        "Cancelling is not deleting: the row stays so tickets, payments and refunds still make sense."
+      ]
+    },
+    "notifications": {
+      "purpose": "One row per message the platform sent to one person.",
+      "columns": {
+        "event_id": "What the message was about. Cleared if the event is deleted, which keeps the send record",
+        "channel": "Which transport was used",
+        "template_key": "Names the template in `app/mailers/`, e.g. `order.confirmed`",
+        "status": "`skipped` means the person had turned this message off",
+        "error": "Provider message for a `failed` send, kept for support"
+      }
+    },
+    "order_lines": {
+      "purpose": "One row per ticket type in an order, with how many were bought.",
+      "columns": {
+        "line_no": "Numbered from 1 inside the order, and never reused",
+        "unit_price_cents": "The price at the moment of checkout, not today's price",
+        "line_total_cents": "`unit_price_cents × quantity`, stored so historic orders never move"
+      },
+      "notes": ["Editing a paid order is not allowed. A mistake is refunded and bought again."]
+    },
+    "orders": {
+      "purpose": "One row per basket, which becomes a purchase once it is paid.",
+      "columns": {
+        "user_id": "NULL for guest checkout, which is most orders",
+        "discount_code_id": "Cleared if the code is deleted; `discount_cents` keeps the money that was taken off",
+        "buyer_email": "Where the tickets were sent. The only way to find a guest order",
+        "status": "`cart` rows are not purchases and are excluded from every report",
+        "subtotal_cents": "Sum of the order lines, before discount and fee",
+        "fee_cents": "The platform's cut, taken from `organizations.fee_bps` at checkout",
+        "total_cents": "What the buyer was charged. The database checks it against the other three",
+        "placed_at": "Set when the basket is submitted; NULL while `status = 'cart'`",
+        "expires_at": "When an unpaid basket releases its held tickets"
+      },
+      "notes": [
+        "A basket is a row here from the first ticket added, so held stock is visible to everyone.",
+        "Abandoned baskets are swept hourly: `status` becomes `expired` and the held quantities go back."
+      ]
+    },
+    "org_members": {
+      "purpose": "One row per person who may act for an organization.",
+      "columns": {
+        "role": "What this person may do in the organizer dashboard",
+        "invited_by": "Who sent the invitation. NULL once that account is deleted",
+        "accepted_at": "NULL while the invitation is still outstanding"
+      },
+      "notes": ["No surrogate key: the pair of ids is the primary key, so one person can hold one role per organization."]
+    },
+    "organizations": {
+      "purpose": "One row per organizer account that sells tickets.",
+      "columns": {
+        "parent_org_id": "Set for a venue group's sub-accounts, which share billing. NULL for a standalone organizer",
+        "slug": "Used in the public URL and unique across the whole platform",
+        "plan": "Decides the feature flags, not the fee",
+        "payout_currency": "Payouts are made in this currency; events may still sell in another",
+        "fee_bps": "Platform fee in basis points, copied onto each order at checkout",
+        "deleted_at": "Hides the organization. Events, orders and payments are kept"
+      },
+      "notes": ["The tenant root: almost everything else is reachable from a row here."]
+    },
+    "payments": {
+      "purpose": "One row per attempt to charge a buyer.",
+      "columns": {
+        "payout_batch_id": "Set when the payment is swept into a payout. NULL until then",
+        "provider": "Which processor took the money",
+        "provider_charge_id": "The processor's own id, unique per provider. NULL for an attempt that never reached them",
+        "status": "`disputed` is set from a provider webhook and never by the application",
+        "failure_code": "The provider's code for a `failed` attempt"
+      },
+      "notes": [
+        "A failed attempt stays. An order can have several rows here and at most one that succeeded.",
+        "Nothing here is ever deleted: both the order and the organization refuse to go while payments exist."
+      ]
+    },
+    "payout_batches": {
+      "purpose": "One row per transfer of takings to an organizer.",
+      "columns": {
+        "period_start": "First day of takings in this batch, inclusive",
+        "period_end": "Last day of takings in this batch, inclusive",
+        "gross_cents": "Sum of the successful payments swept into the batch",
+        "fee_cents": "Sum of the platform fees on those payments",
+        "net_cents": "What was actually sent. The database checks it against the other two",
+        "status": "`sent` means handed to the bank; `paid` means the bank confirmed it"
+      }
+    },
+    "refunds": {
+      "purpose": "One row per amount sent back to a buyer.",
+      "columns": {
+        "order_id": "Carried so refunds can be totalled per order without joining `payments`",
+        "requested_by": "The staff member who asked for it. NULL for an automatic refund after a cancellation",
+        "amount_cents": "May be less than the payment: partial refunds are normal",
+        "reason": "Why the money went back"
+      },
+      "notes": ["Several partial refunds against one payment are allowed. The application keeps their sum within the payment."]
+    },
+    "seating_zones": {
+      "purpose": "One row per named part of a venue, such as a stand or a tier.",
+      "columns": {
+        "capacity": "Seats in this zone. The sum across zones may be below the venue's own `capacity`",
+        "position": "Display order; the application renumbers from 0 on every save"
+      },
+      "notes": ["Deleting a zone leaves its ticket types and sessions in place with an empty zone."]
+    },
+    "ticket_types": {
+      "purpose": "One row per thing a buyer can put in a basket.",
+      "columns": {
+        "seating_zone_id": "Set for `reserved` types. Cleared if the zone is deleted",
+        "kind": "Decides whether a seat label is assigned and whether money is taken",
+        "price_cents": "`0` for `comp` tickets, which still create attendees",
+        "quantity_total": "How many may ever be sold, including the ones already sold",
+        "quantity_sold": "Raised inside the checkout transaction; the database refuses to let it pass `quantity_total`",
+        "max_per_order": "Per-basket cap shown on the ticket page",
+        "sales_start_at": "NULL means on sale as soon as the event is published",
+        "sales_end_at": "NULL means on sale until the event starts",
+        "position": "Display order on the ticket page; renumbered from 0 on every save"
+      },
+      "badges": ["public_id", "stored counts", "ordered"],
+      "notes": ["Price and name can change. Sold orders keep their own copy, so changing them never moves a past total."]
+    },
+    "user_devices": {
+      "purpose": "One row per phone or browser signed in for push messages.",
+      "columns": {
+        "platform": "Which push service the token belongs to",
+        "push_token": "The provider's token. Unique across the platform, because the provider reissues it",
+        "label": "Device name the person can recognise in their settings",
+        "last_seen_at": "Last time the app opened. Tokens unused for 90 days are deleted"
+      }
+    },
+    "users": {
+      "purpose": "One row per person with a sign-in, whether buyer or organizer.",
+      "columns": {
+        "email": "Unique case-insensitively, through a unique index on `lower(email)`",
+        "locale": "Which language messages are sent in",
+        "password_set_at": "NULL for an account that has only ever used a magic link",
+        "deleted_at": "Hides the account. Orders and tickets stay, with the link cleared"
+      },
+      "notes": ["Most buyers never have a row here: guest checkout only stores `orders.buyer_email`."]
+    },
+    "venues": {
+      "purpose": "One row per place an organization puts events on.",
+      "columns": {
+        "country_code": "ISO 3166-1 alpha-2, upper case",
+        "timezone": "IANA name, used to show times for events held here",
+        "capacity": "Whole-venue limit. NULL when nobody has filled it in",
+        "latitude": "Set by geocoding the address, not typed in",
+        "longitude": "Set by geocoding the address, not typed in"
+      },
+      "notes": ["A venue can't be deleted while an event still points at it."]
+    },
+    "waitlist_entries": {
+      "purpose": "One row per person waiting for a ticket that is sold out.",
+      "columns": {
+        "ticket_type_id": "NULL to wait for any ticket type, or cleared when that type is deleted",
+        "user_id": "NULL when someone joined the waitlist without signing in",
+        "email": "One entry per email per event",
+        "status": "`offered` holds stock until `expires_at` passes",
+        "expires_at": "When an offer lapses and the stock goes to the next person"
+      },
+      "notes": ["The release job walks `status = 'waiting'` in `created_at` order, oldest first."]
+    },
+    "webhook_deliveries": {
+      "purpose": "One row per webhook the platform tried to deliver to an organizer's endpoint.",
+      "columns": {
+        "event_name": "Which platform event this payload describes",
+        "target_url": "Copied from the endpoint's settings at send time, so the history stays true",
+        "payload": "Exactly what was sent, including the signature header's body",
+        "attempt_count": "Retries back off; the sender gives up after 8",
+        "response_code": "HTTP status of the last attempt. NULL if the request never completed"
+      },
+      "notes": ["Rows older than 30 days are deleted by the nightly job."]
+    }
+  },
+  "values": {
+    "audit_log.action": {
+      "values": ["created", "updated", "deleted", "published", "cancelled", "refunded", "role_changed"],
+      "note": "This list lives in `app/services/audit.rb`, not in the database. The column accepts any text, so a typo is stored happily."
+    },
+    "notifications.channel": {
+      "values": ["email", "sms", "push"],
+      "note": "Set from the `Channel` union in `app/notifications/`. The database accepts any text."
+    },
+    "refunds.reason": {
+      "values": ["requested_by_buyer", "event_cancelled", "duplicate", "fraud"],
+      "hints": {
+        "event_cancelled": "Written by the cancellation job, not by a person",
+        "fraud": "Also closes the order and voids its attendees"
+      },
+      "note": "Application list, from `app/models/refund.rb`. The database does not restrict it."
+    },
+    "webhook_deliveries.event_name": {
+      "values": ["order.paid", "order.refunded", "event.published", "event.cancelled", "attendee.checked_in"],
+      "note": "The published webhook catalogue, from `app/webhooks/catalogue.rb`. New names are added here as features ship; the database accepts any text."
+    }
+  },
+  "indexes": {
+    "attendees_event_email_idx": "Find a buyer's tickets at the door when they have lost the barcode",
+    "attendees_ticket_type_idx": "Keeps the `restrict` check on ticket types cheap",
+    "audit_log_entity_idx": "The history panel on one row, newest first",
+    "audit_log_org_created_idx": "The organization-wide activity feed",
+    "check_ins_event_scanned_idx": "The live door feed during an event",
+    "check_ins_one_ok_per_attendee": "Stops the same ticket being admitted twice, even from two gates at once",
+    "discount_codes_live_idx": "The codes a checkout may still accept",
+    "events_on_sale_idx": "The public listing of what is on sale next",
+    "events_org_starts_idx": "The organizer dashboard: our events, soonest first",
+    "notifications_queued_idx": "The send worker's queue",
+    "order_lines_ticket_type_idx": "Keeps the `restrict` check on ticket types cheap",
+    "orders_buyer_email_lower_idx": "Support looking up a guest order by email",
+    "orders_event_placed_idx": "An event's sales list, newest first, baskets excluded",
+    "orders_expiring_carts_idx": "The sweeper that releases held tickets",
+    "org_members_pending_idx": "Outstanding invitations for one organization",
+    "org_members_user_idx": "Which organizations one person can act for",
+    "organizations_live_idx": "Resolving a slug from the public URL",
+    "payments_order_idx": "Every attempt against one order, for the support view",
+    "payments_unbatched_idx": "What the next payout batch should sweep up",
+    "ticket_types_available_idx": "The ticket page: what is still buyable, in display order",
+    "user_devices_user_idx": "The push tokens for one person, most recent first",
+    "users_email_lower_key": "Sign-in by email, case-insensitively",
+    "users_last_seen_idx": "Recently active accounts, for support and for the activity report",
+    "waitlist_entries_waiting_idx": "The release job: who is next for this event",
+    "webhook_deliveries_retry_idx": "The retry worker's queue"
+  },
+  "checks": {
+    "attendees_status_check": "A ticket's status is one of the four known values",
+    "check_ins_result_check": "A scan result is one of the four known values",
+    "discount_codes_kind_check": "A code is a percentage or an amount",
+    "discount_codes_shape_check": "A percentage code has a percentage, an amount code has an amount",
+    "discount_codes_window_check": "A code's window ends after it starts",
+    "event_sessions_time_check": "A session ends after it starts",
+    "events_doors_check": "Doors never open after the event starts",
+    "events_status_check": "An event's status is one of the five known values",
+    "events_time_check": "An event ends after it starts",
+    "notifications_status_check": "A message's status is one of the four known values",
+    "order_lines_quantity_check": "An order line is for at least one ticket",
+    "order_lines_total_check": "A line total is the unit price times the quantity",
+    "orders_amounts_check": "No part of an order's money is negative",
+    "orders_status_check": "An order's status is one of the seven known values",
+    "orders_total_check": "An order's total is subtotal − discount + fee",
+    "org_members_role_check": "A membership role is one of the five known values",
+    "organizations_fee_bps_check": "The platform fee is between 0 and 20 percent",
+    "organizations_plan_check": "An organization's plan is one of the three known values",
+    "payments_amount_check": "A charge is for more than nothing",
+    "payments_status_check": "A payment's status is one of the four known values",
+    "payout_batches_net_check": "A payout's net is its gross minus its fees",
+    "payout_batches_period_check": "A payout period ends on or after it starts",
+    "payout_batches_status_check": "A payout's status is one of the four known values",
+    "refunds_amount_check": "A refund is for more than nothing",
+    "refunds_status_check": "A refund's status is one of the three known values",
+    "seating_zones_capacity_check": "A zone holds at least one person",
+    "ticket_types_kind_check": "A ticket type is one of the four known kinds",
+    "ticket_types_max_per_order_check": "A basket may hold at least one of each type",
+    "ticket_types_price_check": "A ticket price is never negative",
+    "ticket_types_quantity_check": "Tickets sold never pass tickets available",
+    "user_devices_platform_check": "A device platform is one of the three known values",
+    "users_email_check": "An email address has something before the @",
+    "venues_capacity_check": "A venue holds at least one person, or says nothing",
+    "waitlist_entries_quantity_check": "A waitlist entry asks for 1 to 10 tickets",
+    "waitlist_entries_status_check": "A waitlist entry's status is one of the four known values",
+    "webhook_deliveries_attempt_check": "An attempt count never goes below zero",
+    "webhook_deliveries_status_check": "A delivery's status is one of the three known values"
+  },
+  "tour": [
+    {
+      "title": "The database in one sentence",
+      "text": [
+        "One PostgreSQL database runs the whole ticketing platform: **{tables} tables**, grouped into **{areas} areas**.",
+        "Read it as a shop. An organizer lists an event, a buyer fills a basket, money moves, and someone scans a barcode at the door."
+      ],
+      "visual": "areas"
+    },
+    {
+      "title": "Everything belongs to an organization",
+      "text": [
+        "`organizations` is the tenant. {in:organizations} links from {inFrom:organizations} tables point to it, more than to any other table.",
+        "`org_members` says who may act for one. It has no id of its own: the pair of organization and user *is* the key, so one person holds one role per organization."
+      ],
+      "tables": ["organizations", "org_members", "users", "user_devices"]
+    },
+    {
+      "title": "An organization can own another one",
+      "text": [
+        "`organizations.parent_org_id` points back at `organizations`. A venue group uses it for its sub-accounts, which share billing.",
+        "Delete a parent and the children stay, with `parent_org_id` cleared. Nothing cascades."
+      ],
+      "tables": ["organizations"]
+    },
+    {
+      "title": "Where an event happens",
+      "text": [
+        "A venue belongs to one organization. `seating_zones` splits the room into named parts, which reserved ticket types point at.",
+        "Deleting a venue is refused while any event still points at it. Deleting the organization takes its venues with it."
+      ],
+      "tables": ["venues", "seating_zones"]
+    },
+    {
+      "title": "An event's life",
+      "text": [
+        "`events.status` is the one column that decides whether the public can see the event and whether tickets can be bought.",
+        "`cancelled` can be reached from any step, and is never a delete: the row has to survive so its tickets and payments still make sense."
+      ],
+      "visual": { "kind": "flow", "steps": ["draft", "on_sale", "sold_out", "completed"] },
+      "tables": ["events"]
+    },
+    {
+      "title": "What an event sells",
+      "text": [
+        "`ticket_types` is the thing a buyer actually puts in a basket: a name, a price and a quantity. `event_sessions` only exists for events that run more than once.",
+        "`discount_codes` can hang off one event or off the whole organization."
+      ],
+      "tables": ["ticket_types", "event_sessions", "discount_codes"]
+    },
+    {
+      "title": "A basket becomes an order",
+      "text": [
+        "A basket is a real `orders` row from the first ticket added, so held stock is visible to everyone. `status = 'cart'` keeps it out of every report.",
+        "`order_lines` has a composite primary key: `(order_id, line_no)`. Line numbers start at 1 inside an order and are never reused."
+      ],
+      "visual": { "kind": "flow", "steps": ["cart", "pending", "paid"] },
+      "tables": ["orders", "order_lines"]
+    },
+    {
+      "title": "One row per ticket, with a name on it",
+      "text": [
+        "Buying three tickets on one line creates three `attendees` rows. That is where the barcode lives, and the only id the door app ever sees.",
+        "`attendees` points at `order_lines` with **two** columns at once, because the line it came from needs both."
+      ],
+      "visual": {
+        "kind": "table",
+        "head": ["Column", "Example", "Who sees it"],
+        "rows": [
+          ["id", "81422", "Only the server"],
+          ["public_id", "3c9f…b104", "The buyer's app"],
+          ["barcode", "SP-7H2K-9QX4", "The door scanner"]
+        ],
+        "prose": [2]
+      },
+      "tables": ["attendees"]
+    },
+    {
+      "title": "What happens when something is deleted",
+      "text": ["Every link says what happens to a row when the row it points at is deleted. There are three answers, and the schema uses all three."],
+      "visual": {
+        "kind": "rules",
+        "cascade": "An event's ticket types, sessions and attendees go with it. {cascade} links work this way.",
+        "setnull": "A deleted staff account leaves its check-ins in place with `checked_in_by` empty. {setnull} links.",
+        "restrict": "An order with a payment against it refuses to be deleted. {restrict} links."
+      },
+      "tables": ["events", "check_ins", "orders", "payments"]
+    },
+    {
+      "title": "Money in, money out",
+      "text": [
+        "`payments` is one row per *attempt*, so a failed card is a row too. At most one of them succeeded.",
+        "`refunds` can be partial and can be several per payment. `payout_batches` sweeps succeeded payments into one transfer to the organizer."
+      ],
+      "tables": ["payments", "refunds", "payout_batches"]
+    },
+    {
+      "title": "At the door, and in the queue",
+      "text": [
+        "`check_ins` records every scan, including the ones turned away, so a disputed night can be read back. A unique index allows only one `ok` scan per ticket.",
+        "`waitlist_entries` is the queue for a sold-out type. An offer holds stock until it expires, then moves to the next person."
+      ],
+      "tables": ["check_ins", "waitlist_entries"]
+    },
+    {
+      "title": "Where to go next",
+      "text": [
+        "`notifications`, `webhook_deliveries` and `audit_log` are the platform's own record of what it sent and who changed what. None of them is read by the app itself.",
+        "Explore walks the areas table by table. Reference has every link, every index and every rule in one list."
+      ],
+      "visual": "next"
+    }
+  ],
+  "reference": [
+    {
+      "id": "conventions",
+      "title": "Conventions",
+      "desc": "The patterns nearly every table follows",
+      "sections": [
+        {
+          "items": [
+            { "title": "Internal keys", "text": "`id bigint GENERATED ALWAYS AS IDENTITY`. For joins only, and **never sent to a client**." },
+            { "title": "Public keys", "text": "`public_id uuid` on every row a client can name, so nothing can be guessed or counted from a URL." },
+            { "title": "Slugs", "text": "`organizations.slug` and `events.slug` name those rows in public URLs. Event slugs are unique inside the organization, not globally." },
+            { "title": "Money", "text": "Integer cents plus a `char(3)` currency on the same row. No floats anywhere, and no implied currency." },
+            { "title": "Timestamps", "text": "`timestamptz`, always absolute. `events.timezone` and `venues.timezone` say how to show them. `updated_at` is set by the application, not by a trigger." },
+            { "title": "Status columns", "text": "`text` with `CHECK (… IN (…))`, so the database rejects an unknown value. The same lists are generated into `app/types/status.ts` by `rake schema:types`." },
+            { "title": "Soft delete", "text": "`deleted_at` on `organizations` and `users` only. Everything else is deleted for real or cancelled in place.", "tables": ["organizations", "users"] },
+            { "title": "Stored counts", "text": "`ticket_types.quantity_sold` and `discount_codes.redemption_count` are moved inside the checkout transaction and repaired nightly. A CHECK stops `quantity_sold` passing `quantity_total`.", "tables": ["ticket_types", "discount_codes"] },
+            { "title": "Denormalised ids", "text": "`attendees.event_id`, `check_ins.event_id` and `refunds.order_id` repeat an id that could be joined for. They exist so the door app and the finance reports stay on one table.", "tables": ["attendees", "check_ins", "refunds"] },
+            { "title": "Ordered children", "text": "`position` on `event_sessions`, `seating_zones` and `ticket_types`. Renumbered from 0 on every save, in one statement." },
+            { "title": "Polymorphic references", "text": "`audit_log.entity_type` and `audit_log.entity_id` have no foreign key on purpose, so the log outlives the rows it describes.", "on": "audit_log" },
+            { "title": "Cents, not currency maths", "text": "Totals are checked by the database: `orders.total_cents` against its three parts, `order_lines.line_total_cents` against unit price and quantity, `payout_batches.net_cents` against gross and fees." }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lifecycle",
+      "title": "How data changes and expires",
+      "desc": "Status flows, the jobs that move them, and what is cleaned up",
+      "sections": [
+        {
+          "title": "Status flows",
+          "items": [
+            { "title": "An event", "steps": ["draft", "on_sale", "sold_out", "completed"], "text": "`cancelled` is reachable from any step. `sold_out` is set by the checkout job when the last ticket type fills, and back to `on_sale` when a refund frees stock.", "on": "events" },
+            { "title": "An order", "steps": ["cart", "pending", "paid"], "text": "Then `partially_refunded` or `refunded` as money goes back. `cancelled` is for an organizer cancelling, `expired` for the basket sweeper.", "on": "orders" },
+            { "title": "A ticket", "steps": ["issued", "checked_in"], "text": "`transferred` means the name changed. `void` is set by a full refund or by a fraud case, and a void ticket is refused at the door.", "on": "attendees" },
+            { "title": "A waitlist entry", "steps": ["waiting", "offered", "converted"], "text": "`expired` when an offer is not taken before `expires_at`. The stock then moves to the next `waiting` row.", "on": "waitlist_entries", "tag": "new" }
+          ]
+        },
+        {
+          "title": "Jobs that write to the database",
+          "items": [
+            { "title": "Basket sweeper", "text": "Hourly. Sets `orders.status = 'expired'` past `expires_at` and lowers `ticket_types.quantity_sold` by what the basket held.", "where": "orders.status = 'cart' AND expires_at < now()" },
+            { "title": "Waitlist release", "text": "Every five minutes. Offers freed stock to the oldest `waiting` entry and queues a notification.", "where": "waitlist_entries.status = 'waiting'" },
+            { "title": "Payout sweep", "text": "Weekly. Opens a `payout_batches` row per organization and sets `payments.payout_batch_id` on the succeeded payments inside the period." },
+            { "title": "Count repair", "text": "Nightly. Recounts `ticket_types.quantity_sold` and `discount_codes.redemption_count` from the orders and corrects any drift." },
+            { "title": "Purge", "text": "Nightly. Removes `organizations` and `users` rows soft-deleted more than 30 days ago, `webhook_deliveries` older than 30 days, and `user_devices` unused for 90 days." }
+          ]
+        },
+        {
+          "title": "What survives a delete",
+          "note": "Deleting a `users` row clears `orders.user_id` but keeps the order, its lines, its attendees and its payments. The buyer's email stays on the order, because a guest order has nothing else to find it by.",
+          "items": [
+            { "title": "Deleting an organization", "text": "Refused while it has events, orders, payments or payout batches. In practice organizations are soft-deleted instead.", "on": "organizations" },
+            { "title": "Deleting an event", "text": "Takes its sessions, ticket types, discount codes, attendees, check-ins and waitlist with it. Refused while it has orders.", "on": "events" },
+            { "title": "Deleting an order", "text": "Takes its lines and their attendees and check-ins. Refused while a payment or refund points at it.", "on": "orders" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "links",
+      "title": "All links between tables",
+      "desc": "Every foreign key ({links}) and what deleting does",
+      "builtin": "links"
+    },
+    {
+      "id": "indexes",
+      "title": "Indexes",
+      "desc": "What is indexed, and for which screen",
+      "builtin": "indexes"
+    },
+    {
+      "id": "checks",
+      "title": "Rules the database enforces",
+      "desc": "Every CHECK, in plain words",
+      "builtin": "checks"
+    }
+  ]
+}

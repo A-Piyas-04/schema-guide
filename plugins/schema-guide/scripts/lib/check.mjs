@@ -30,7 +30,7 @@ export async function checkGuide({ facts, guide, html, builtHtml, browser }) {
 }
 
 /* ---------------- the guide against the facts ---------------- */
-function validate(facts, guide, errors, warnings) {
+export function validate(facts, guide, errors, warnings) {
   const tables = new Map(facts.tables.map((t) => [t.name, t]));
   const hasTable = (n) => tables.has(n);
   const hasColumn = (key) => {
@@ -42,8 +42,42 @@ function validate(facts, guide, errors, warnings) {
   const checkNames = new Set(facts.tables.flatMap((t) => (t.checks || []).map((c) => c.name)));
   const need = (ok, what) => ok || errors.push(what);
 
+  // Tables are keyed by name everywhere, so a repeat would silently shadow the first one.
+  const seenTable = new Set();
   for (const t of facts.tables) {
-    for (const f of t.foreignKeys || []) need(hasTable(f.table), `${t.name}.${f.columns.join(', ')} links to a table that isn't in the facts: ${f.table}`);
+    need(!seenTable.has(t.name), `two tables are both called "${t.name}"; names must be unique across databases too`);
+    seenTable.add(t.name);
+  }
+
+  let links = 0;
+  let soft = 0;
+  for (const t of facts.tables) {
+    for (const f of t.foreignKeys || []) {
+      links++;
+      need(hasTable(f.table), `${t.name}.${f.columns.join(', ')} links to a table that isn't in the facts: ${f.table}`);
+      for (const c of f.columns) need(hasColumn(`${t.name}.${c}`), `${t.name} has a link on a column that doesn't exist: ${c}`);
+      if (f.enforced === false) {
+        soft++;
+        if (f.onDelete) warnings.push(`${t.name}.${f.columns.join(', ')} is not enforced, so onDelete "${f.onDelete}" can't happen; remove it.`);
+      }
+    }
+  }
+  const sameDb = (a, b) => (tables.get(a) || {}).database === (tables.get(b) || {}).database;
+  for (const t of facts.tables) {
+    for (const f of t.foreignKeys || []) {
+      if (f.enforced !== false && hasTable(f.table) && !sameDb(t.name, f.table)) {
+        errors.push(`${t.name}.${f.columns.join(', ')} is a foreign key to ${f.table} in another database, which no database can enforce: add "enforced": false`);
+      }
+    }
+  }
+  if (!links && facts.tables.length > 1) {
+    warnings.push(
+      (facts.source || {}).kind === 'files'
+        ? `no links between ${facts.tables.length} tables: the map, delete impact and join path will all be empty. If the code treats columns as references the database doesn't enforce, record them with "enforced": false.`
+        : `no foreign keys in ${facts.tables.length} tables: the map, delete impact and join path will all be empty.`,
+    );
+  } else if (soft && soft === links) {
+    warnings.push(`all ${links} links are unenforced; check that the database really declares no foreign keys.`);
   }
 
   const seenArea = new Set();
@@ -97,7 +131,12 @@ function validate(facts, guide, errors, warnings) {
   (guide.tour || []).forEach((s, i) => {
     for (const n of s.tables || []) need(hasTable(n), `tour step ${i + 1} names a table that doesn't exist: ${n}`);
   });
+  const refHas = { links, indexes: indexNames.size, checks: checkNames.size };
   for (const r of guide.reference || []) {
+    // The page drops a built-in with nothing to show, so say so rather than losing it quietly.
+    if (r.builtin && !(r.sections || []).length && !refHas[r.builtin]) {
+      warnings.push(`reference built-in "${r.builtin}" has nothing to show and won't appear on the page.`);
+    }
     for (const s of r.sections || []) {
       for (const it of s.items || []) {
         for (const n of it.tables || []) need(hasTable(n), `reference "${r.title || r.builtin}" item "${it.title}" names a table that doesn't exist: ${n}`);

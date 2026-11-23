@@ -1,13 +1,14 @@
 {
   "name": "schema-guide-plugins",
-  "owner": { "name": "A-Piyas-04" },
+  "owner": { "name": "A-Piyas-04", "url": "https://github.com/A-Piyas-04" },
   "description": "The schema-guide plugin for Claude Code.",
   "plugins": [
     {
       "name": "schema-guide",
       "source": "./plugins/schema-guide",
       "description": "Turns your database schema into a step-by-step, offline HTML guide. Two commands: build and update.",
-      "category": "development"
+      "category": "development",
+      "keywords": ["database", "schema", "documentation", "erd", "onboarding"]
     }
   ]
 }

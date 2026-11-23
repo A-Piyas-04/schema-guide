@@ -5,7 +5,7 @@
 //   build [--out path]                                                           facts + guide + template -> one HTML file
 //   check [--browser]                                                            validate, render every page, check the maps
 // Shared options: --dir .schema-guide  --facts <file>  --guide <file>  --out docs/schema-guide.html
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync, copyFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,11 +38,11 @@ const fail = (msg) => {
 
 try {
   if (cmd === 'read') await read();
-  else if (cmd === 'build') build();
+  else if (cmd === 'build') await build();
   else if (cmd === 'check') await check();
   else {
     console.log('Usage: schema-guide.mjs read <database-url|file.db> | read --diff | build [--out path] | check [--browser]');
-    process.exit(cmd ? 1 : 0);
+    process.exit(!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help' ? 0 : 1);
   }
 } catch (err) {
   fail(err.message);
@@ -56,7 +56,8 @@ async function read() {
   }
   const target = argv[1] && !argv[1].startsWith('--') ? argv[1] : process.env.DATABASE_URL;
   if (!target) fail('give a database URL or a .db file, or set DATABASE_URL.');
-  const { introspect, redact } = await import('./lib/introspect.mjs');
+  const { introspect, redact, kindOf } = await import('./lib/introspect.mjs');
+  if (!kindOf(target)) fail(`don't know how to read "${redact(target)}". Use postgres://…, mysql://… or a .db/.sqlite file.`);
   console.log(`Reading ${redact(target)} …`);
   const facts = await introspect(target, { schema: opt('schema'), keepMeta: flag('keep-meta'), client: opt('client') });
   if (!facts.tables.length) fail('no tables found (wrong database or schema?).');
@@ -133,13 +134,20 @@ export function render(facts, guide) {
   return readFileSync(TEMPLATE, 'utf8').replace(/\{\{TITLE\}\}/g, () => title).replace('{{DATA}}', () => data);
 }
 
-function build() {
+async function build() {
   const { facts, guide } = loadInputs();
+  const { validate } = await import('./lib/check.mjs');
+  const errors = [];
+  validate(facts, guide, errors, []);
+  for (const e of errors) console.log(`error: ${e}`);
+  if (errors.length) fail(`${errors.length} error(s) in facts.json / guide.json. Nothing was written; fix them and build again.`);
   const html = render(facts, guide);
   mkdirSync(dirname(paths.out), { recursive: true });
   writeFileSync(paths.out, html);
   const links = facts.tables.reduce((n, t) => n + t.foreignKeys.length, 0);
-  console.log(`Built ${paths.out} (${Math.round(html.length / 1024)} KB): ${facts.tables.length} tables, ${links} links${existsSync(paths.guide) ? '' : ', no guide text yet'}.`);
+  // realpathSync: on Windows and macOS "docs/" can resolve to an existing "Docs/".
+  const where = realpathSync(paths.out);
+  console.log(`Built ${where} (${Math.round(html.length / 1024)} KB): ${facts.tables.length} tables, ${links} links${existsSync(paths.guide) ? '' : ', no guide text yet'}.`);
 }
 
 /* ---------------- check ---------------- */

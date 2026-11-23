@@ -2,11 +2,13 @@
 
 The words people read. Everything structural (tables, columns, types, keys, links, delete rules, indexes, checks, value lists from the database) comes from `facts.json`. Never repeat it here; only explain it.
 
+If you find yourself listing relationships in prose because `facts.json` has none, stop: those belong in `facts.json` as `"enforced": false` links (see `facts-format.md`). Written out here they are invisible to the map, delete impact and join path.
+
 ## Writing rules
 
 - Short phrases, plain words, one idea per sentence. Write for a new teammate, not for a DBA.
 - `purpose`: one line saying what one row is. "One row per signed-in device." Not "This table stores…".
-- Column notes only where they add something: units, who sets it, what NULL means, a gotcha. Skip obvious columns (`id`, `created_at`, a plain `name`).
+- Column notes only where they add something: units, who sets it, what NULL means, a gotcha. Skip obvious columns (`id`, `created_at`, a plain `name`) — skipping one does not move it; columns stay in database order.
 - Status-like columns: the database's own value lists (CHECK `IN (…)`, enums) are read automatically. Write the list in the note as `a · b · c` (or `a → b → c, or d` for an ordered flow) only when the database doesn't declare it, or when you want hints: `draft · published (live) · archived`.
 - Text is mini-markdown: `` `code` ``, `**bold**`, `*em*`, `[[table]]` (links to that table), `[text](#route)`. No HTML.
 - Numbers that follow the schema: `{tables}` `{areas}` `{links}` `{cascade}` `{setnull}` `{restrict}` `{hub}` `{in:t}` (links into t) `{inFrom:t}` (tables pointing at t) `{out:t}` `{outTo:t}`.
@@ -44,18 +46,18 @@ The words people read. Everything structural (tables, columns, types, keys, link
 | `project.code` | Code tabs in Join path: `sql` always, plus `kysely` and/or `knex` when the project uses them. |
 | `areas` | 4–12 groups of related tables, in reading order. Each table in exactly one area. `id` is a short slug used in links. Tables left out go to "Other tables". |
 | `tables.<t>.purpose` | One line. Shown everywhere the table is listed. |
-| `tables.<t>.columns` | Column notes. Key order is the display order (unlisted columns follow in database order); `""` means no note. |
+| `tables.<t>.columns` | Column notes; `""` means no note. Columns keep database order. To choose the order instead, list **every** column of that table — then your key order wins. |
 | `tables.<t>.notes` | "Good to know" lines on the table's About tab. |
 | `tables.<t>.badges` | Replaces the automatic badges (`public_id`, `soft delete`, `stored counts`, `composite PK`, `self-reference`, `ordered`, `slug`). Use `[]` for none. |
 | `tables.<t>.checks` | Replaces the CHECK lines on the About tab (default: the database's checks that aren't value lists). |
 | `badges` | Help text for a badge, or a new badge name: `{ "soft delete": "Hidden at once; purged after 90 days." }`. |
-| `values["t.c"]` | A value list for a column: `{ "values": [...], "flow": true, "or": ["failed"], "hints": { "v": "meaning" }, "note": "…" }`. Must match the database's list when it declares one. |
+| `values["t.c"]` | A value list for a column: `{ "values": [...], "flow": true, "or": ["failed"], "hints": { "v": "meaning" }, "note": "…" }`. `note` and `hints` are mini-markdown. Must match the database's list when it declares one; this is the right place for a list that only exists in application code (a Java `enum`, a TypeScript union) — say so in `note`. |
 | `indexes` | Index name → why it exists (which screen or query). Unlisted indexes get "On (a, b)". |
 | `checks` | CHECK constraint name → short title for the Rules page. |
 | `hub` | The table most others hang off (default: found automatically; `null` for none). |
 | `joinExample` | `[from, to]` shown first in Join path. |
 | `highlight` | Mark recent additions: `{ "label": "new", "short": "added in v2", "note": "Added in v2.", "tables": [], "columns": ["t.c"], "indexes": [] }`. |
-| `labels` | Wording overrides: `refused` (delete can be refused), `softDeleteWhy`, `lookup` (home), `hubWhy`, `selfCascade`. |
+| `labels` | Wording overrides: `refused` (delete can be refused), `softDeleteWhy`, `lookup` (home), `hubWhy`, `selfCascade`, `indexesNone` (the "nothing else is indexed" line on a table's Indexes tab). |
 | `aliases` | Old `#route` → new route, for links from elsewhere. |
 
 ## Tour

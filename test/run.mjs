@@ -36,21 +36,28 @@ const engineOf = (dir) => {
   return loadEngine(html, { facts, guide });
 };
 
-/* ---------- 1. The Doshomik example ---------- */
-console.log('Doshomik example (39 tables, PostgreSQL)');
+/* ---------- 1. The demo example ---------- */
+console.log('Demo example (21 tables, PostgreSQL)');
 {
-  const dir = fresh('doshomik');
+  const dir = fresh('demo');
   mkdirSync(join(dir, '.schema-guide'));
-  for (const f of ['facts.json', 'guide.json']) cpSync(join(ROOT, 'examples/doshomik', f), join(dir, '.schema-guide', f));
+  for (const f of ['facts.json', 'guide.json']) cpSync(join(ROOT, 'examples/demo', f), join(dir, '.schema-guide', f));
   const b = cli(dir, 'build');
-  ok(b.code === 0 && /39 tables, 76 links/.test(b.out), 'builds: 39 tables, 76 links');
+  ok(b.code === 0 && /21 tables, 45 links/.test(b.out), 'builds: 21 tables, 45 links');
   const c = cli(dir, 'check', ...(BROWSER ? ['--browser'] : []));
-  ok(c.code === 0, `check passes: ${c.out.trim().split('\n').pop()}`);
+  ok(c.code === 0 && /Check passed/.test(c.out) && !/warning:/.test(c.out), `check passes with no warnings: ${c.out.trim().split('\n').pop()}`);
   const g = engineOf(dir);
   const text = (h) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  ok(/5 levels/.test(text(g.viewDiagram('layers'))), 'Layers: 5 levels');
-  ok(/7 owners at the top/.test(text(g.viewDiagram('ownership'))), 'Ownership: 7 owners at the top');
-  ok(/users 37 in, 0 out/.test(text(g.viewDiagram('hubs'))), 'Most connected: users first, 37 in');
+  ok(/8 levels/.test(text(g.viewDiagram('layers'))), 'Layers: 8 levels');
+  ok(/5 owners at the top/.test(text(g.viewDiagram('ownership'))), 'Ownership: 5 owners at the top');
+  ok(/15 owned tables/.test(text(g.viewDiagram('ownership'))), 'Ownership: 15 owned tables');
+  ok(/events 8 in, 3 out/.test(text(g.viewDiagram('hubs'))), 'Most connected: events first, 8 in');
+  ok(g.DOMAINS.length === 7 && g.DOMAINS[0].id === 'tenants', '7 areas, Organizations & people first');
+  g.setHash('#tools/join/attendees/order_lines');
+  ok(/AND [a-z0-9]+\.line_no = /.test(g.viewTools()), 'the composite link to order_lines joins on both columns');
+  g.setHash('#tools/impact/events');
+  const impact = text(g.viewTools());
+  ok(/6 tables lose rows/.test(impact) && /links can block it/.test(impact), `deleting an event: ${impact.match(/\d+ tables? lose rows/)[0]}`);
 }
 
 /* ---------- 2. SQLite fixture ---------- */
@@ -127,18 +134,131 @@ console.log('Guide validation');
 {
   const dir = fresh('invalid');
   mkdirSync(join(dir, '.schema-guide'));
-  cpSync(join(ROOT, 'examples/doshomik/facts.json'), join(dir, '.schema-guide/facts.json'));
+  cpSync(join(ROOT, 'examples/demo/facts.json'), join(dir, '.schema-guide/facts.json'));
   writeFileSync(join(dir, '.schema-guide/guide.json'), JSON.stringify({
     areas: [{ id: 'a', name: 'A', tables: ['users', 'no_such_table'] }, { id: 'b', name: 'B', tables: ['users'] }],
     tables: { users: { purpose: 'x', columns: { nope: 'y' } } },
-    values: { 'posts.status': { values: ['draft', 'live'] } },
+    values: { 'orders.status': { values: ['draft', 'live'] } },
   }));
   const c = cli(dir, 'check');
   ok(c.code === 1, 'check fails');
   ok(/no_such_table/.test(c.out) && /in two areas/.test(c.out) && /column that doesn't exist: nope/.test(c.out) && /database allows/.test(c.out), 'and names each mistake');
 }
 
-/* ---------- 4. 300 tables ---------- */
+/* ---------- 4. Links the database doesn't enforce ---------- */
+const SPLIT = {
+  version: 1,
+  source: { kind: 'postgres', name: 'split' },
+  tables: [
+    {
+      name: 'customers',
+      database: 'core_db',
+      columns: [{ name: 'id', type: 'bigint', notNull: true }, { name: 'email', type: 'text', notNull: true }],
+      primaryKey: ['id'],
+      uniques: [['email']],
+      foreignKeys: [],
+      indexes: [],
+      checks: [],
+    },
+    {
+      name: 'invoice_lines',
+      database: 'billing_db',
+      columns: [{ name: 'id', type: 'bigint', notNull: true }, { name: 'invoice_id', type: 'bigint', notNull: true }, { name: 'amount_cents', type: 'integer', notNull: true }],
+      primaryKey: ['id'],
+      uniques: [],
+      // A real foreign key: both tables live in billing_db.
+      foreignKeys: [{ name: 'invoice_lines_invoice_id_fkey', columns: ['invoice_id'], table: 'invoices', refColumns: ['id'], onDelete: 'cascade' }],
+      indexes: [],
+      checks: [],
+    },
+    {
+      name: 'invoices',
+      database: 'billing_db',
+      columns: [{ name: 'id', type: 'bigint', notNull: true }, { name: 'subscription_id', type: 'bigint', notNull: true }, { name: 'total_cents', type: 'integer', notNull: true }],
+      primaryKey: ['id'],
+      uniques: [],
+      // Crosses a database boundary, so no database can enforce it.
+      foreignKeys: [{ columns: ['subscription_id'], table: 'subscriptions', refColumns: ['id'], enforced: false }],
+      indexes: [],
+      checks: [],
+    },
+    {
+      name: 'subscriptions',
+      database: 'core_db',
+      columns: [{ name: 'id', type: 'bigint', notNull: true }, { name: 'customer_id', type: 'bigint', notNull: true }, { name: 'plan', type: 'text', notNull: true }],
+      primaryKey: ['id'],
+      uniques: [],
+      foreignKeys: [{ name: 'subscriptions_customer_id_fkey', columns: ['customer_id'], table: 'customers', refColumns: ['id'], onDelete: 'cascade' }],
+      indexes: [],
+      checks: [],
+    },
+    {
+      name: 'usage_events',
+      database: 'billing_db',
+      columns: [{ name: 'id', type: 'bigint', notNull: true }, { name: 'invoice_id', type: 'bigint' }, { name: 'units', type: 'integer', notNull: true }],
+      primaryKey: ['id'],
+      uniques: [],
+      // Same database, but the column was never declared as a foreign key.
+      foreignKeys: [{ columns: ['invoice_id'], table: 'invoices', refColumns: ['id'], enforced: false }],
+      indexes: [],
+      checks: [],
+    },
+  ],
+};
+console.log('Links the database does not enforce');
+{
+  const dir = fresh('unenforced');
+  mkdirSync(join(dir, '.schema-guide'));
+  writeFileSync(join(dir, '.schema-guide/facts.json'), JSON.stringify(SPLIT));
+  const b = cli(dir, 'build');
+  ok(b.code === 0 && /5 tables, 4 links/.test(b.out), 'builds: 5 tables, 4 links across two databases');
+  const c = cli(dir, 'check', ...(BROWSER ? ['--browser'] : []));
+  ok(c.code === 0, `check passes: ${c.out.trim().split('\n').pop()}`);
+  const g = engineOf(dir);
+  g.setHash('#tools/impact/subscriptions');
+  const impact = g.viewTools();
+  ok(/Left pointing at nothing/.test(impact), 'delete impact on subscriptions: "Left pointing at nothing"');
+  ok(!/The delete always succeeds/.test(impact), 'and it does not claim the delete always succeeds');
+  g.setHash('#tools/join/customers/invoices');
+  ok(/Crosses databases/.test(g.viewTools()), 'join path customers → invoices: "Crosses databases"');
+  ok(/e-dangle/.test(g.viewDiagram('all')), 'the map draws the unenforced links dashed (e-dangle)');
+
+  // The same link written as a real foreign key is an error, because nothing can enforce it.
+  const bad = fresh('unenforced-bad');
+  mkdirSync(join(bad, '.schema-guide'));
+  const badFacts = JSON.parse(JSON.stringify(SPLIT));
+  badFacts.tables.find((t) => t.name === 'invoices').foreignKeys = [
+    { name: 'invoices_subscription_id_fkey', columns: ['subscription_id'], table: 'subscriptions', refColumns: ['id'], onDelete: 'cascade' },
+  ];
+  writeFileSync(join(bad, '.schema-guide/facts.json'), JSON.stringify(badFacts));
+  const cb = cli(bad, 'check');
+  ok(cb.code === 1, 'a foreign key across databases fails check');
+  ok(/in another database/.test(cb.out) && /"enforced": false/.test(cb.out), 'and says to use "enforced": false');
+}
+
+/* ---------- 5. Input the CLI refuses ---------- */
+console.log('Bad input');
+{
+  const dir = fresh('bad-guide');
+  mkdirSync(join(dir, '.schema-guide'));
+  writeFileSync(join(dir, '.schema-guide/facts.json'), JSON.stringify(SPLIT));
+  writeFileSync(join(dir, '.schema-guide/guide.json'), JSON.stringify({ areas: [{ id: 'a', name: 'A', tables: ['customers', 'no_such_table'] }] }));
+  const b = cli(dir, 'build');
+  ok(b.code === 1 && /no_such_table/.test(b.out), 'build refuses a guide naming a table that does not exist');
+  ok(!existsSync(join(dir, 'docs/schema-guide.html')), 'and writes nothing');
+
+  ok(cli(dir, '--help').code === 0, '--help exits 0');
+
+  const dup = fresh('duplicate-names');
+  mkdirSync(join(dup, '.schema-guide'));
+  const dupFacts = JSON.parse(JSON.stringify(SPLIT));
+  dupFacts.tables.push({ ...dupFacts.tables[0], database: 'billing_db' });
+  writeFileSync(join(dup, '.schema-guide/facts.json'), JSON.stringify(dupFacts));
+  const cd = cli(dup, 'check');
+  ok(cd.code === 1 && /both called "customers"/.test(cd.out) && /unique/.test(cd.out), 'two tables with the same name fail check');
+}
+
+/* ---------- 6. 300 tables ---------- */
 console.log('300-table schema');
 {
   const dir = fresh('big');
@@ -158,7 +278,7 @@ console.log('300-table schema');
   ok(c.code === 0, `check passes in ${((Date.now() - t0) / 1000).toFixed(1)} s: ${c.out.trim().split('\n').pop()}`);
 }
 
-/* ---------- 5. Real servers, when given ---------- */
+/* ---------- 7. Real servers, when given ---------- */
 for (const [label, url] of [['PostgreSQL', process.env.TEST_PG_URL], ['MySQL', process.env.TEST_MYSQL_URL]]) {
   if (!url) {
     console.log(`${label}: skipped (set TEST_${label === 'MySQL' ? 'MYSQL' : 'PG'}_URL to a scratch database with the fixture schema)`);

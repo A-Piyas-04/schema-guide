@@ -9,11 +9,20 @@ const META = new Set(['pgmigrations', 'knex_migrations', 'knex_migrations_lock',
 const RULES = { a: 'restrict', r: 'restrict', c: 'cascade', n: 'setnull', d: 'setdefault' };
 const MYSQL_RULES = { CASCADE: 'cascade', 'SET NULL': 'setnull', 'SET DEFAULT': 'setdefault', RESTRICT: 'restrict', 'NO ACTION': 'restrict' };
 
+/** Which reader a target needs, or '' when it is none of them. Checked before anything is printed. */
+export function kindOf(target) {
+  if (/^postgres(ql)?:\/\//i.test(target)) return 'postgres';
+  if (/^(mysql|mariadb):\/\//i.test(target)) return 'mysql';
+  if (/\.(db|sqlite3?|db3)$/i.test(target) || /^sqlite:/i.test(target)) return 'sqlite';
+  return '';
+}
+
 export async function introspect(target, opts = {}) {
   let facts;
-  if (/^postgres(ql)?:\/\//i.test(target)) facts = postgres(target, opts);
-  else if (/^(mysql|mariadb):\/\//i.test(target)) facts = mysql(target, opts);
-  else if (/\.(db|sqlite3?|db3)$/i.test(target) || /^sqlite:/i.test(target)) facts = await sqlite(target.replace(/^sqlite:(\/\/)?/i, ''), opts);
+  const kind = kindOf(target);
+  if (kind === 'postgres') facts = postgres(target, opts);
+  else if (kind === 'mysql') facts = mysql(target, opts);
+  else if (kind === 'sqlite') facts = await sqlite(target.replace(/^sqlite:(\/\/)?/i, ''), opts);
   else throw new Error(`Don't know how to read "${redact(target)}". Use postgres://…, mysql://… or a .db/.sqlite file.`);
   if (!opts.keepMeta) facts.tables = facts.tables.filter((t) => !META.has(t.name) && !META.has(t.name.split('.').pop()));
   for (const t of facts.tables) attachValueLists(t);
@@ -82,10 +91,18 @@ function findClient(name, opts) {
   throw new Error(`Could not find the ${name} client. Install it, put it on PATH, or pass --client <path to ${exe}>.`);
 }
 
+/** The cause first, then at most two other lines: psql prints hint, cause, hint. */
+function clientError(raw) {
+  const lines = [...new Set(raw.trim().split('\n').map((l) => l.trim()).filter(Boolean))];
+  const cause = lines.findIndex((l) => /failed|denied|does not exist|unknown|refused|no such|authentication|could not/i.test(l));
+  const first = cause > 0 ? [lines[cause], ...lines.filter((_, i) => i !== cause)] : lines;
+  return first.slice(0, 3).join('\n').replace(/^(psql|mysql):\s*(error:\s*)?/i, '');
+}
+
 function run(cmd, args, env, input) {
   const r = spawnSync(cmd, args, { encoding: 'utf8', env: { ...process.env, ...env }, input, maxBuffer: 256 * 1024 * 1024 });
   if (r.error) throw r.error;
-  if (r.status !== 0) throw new Error((r.stderr || r.stdout || `exit ${r.status}`).trim().split('\n').slice(-3).join('\n'));
+  if (r.status !== 0) throw new Error(clientError(r.stderr || r.stdout || `exit ${r.status}`));
   return r.stdout;
 }
 

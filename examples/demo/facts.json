@@ -1,0 +1,605 @@
+{
+  "version": 1,
+  "source": {
+    "kind": "postgres",
+    "name": "demo",
+    "readAt": "2026-11-23T09:40:00Z"
+  },
+  "tables": [
+    {
+      "name": "attendees",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "public_id", "type": "uuid", "notNull": true, "default": "gen_random_uuid()" },
+        { "name": "event_id", "type": "bigint", "notNull": true },
+        { "name": "order_id", "type": "bigint", "notNull": true },
+        { "name": "line_no", "type": "integer", "notNull": true },
+        { "name": "ticket_type_id", "type": "bigint", "notNull": true },
+        { "name": "full_name", "type": "text" },
+        { "name": "email", "type": "text" },
+        { "name": "barcode", "type": "text", "notNull": true },
+        { "name": "seat_label", "type": "varchar(16)" },
+        { "name": "status", "type": "text", "notNull": true, "default": "'issued'", "values": ["issued", "transferred", "void", "checked_in"] },
+        { "name": "transferred_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["public_id"], ["barcode"]],
+      "foreignKeys": [
+        { "name": "attendees_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "attendees_order_line_fkey", "columns": ["order_id", "line_no"], "table": "order_lines", "refColumns": ["order_id", "line_no"], "onDelete": "cascade" },
+        { "name": "attendees_ticket_type_id_fkey", "columns": ["ticket_type_id"], "table": "ticket_types", "refColumns": ["id"], "onDelete": "restrict" }
+      ],
+      "indexes": [
+        { "name": "attendees_event_email_idx", "columns": ["event_id", "email"] },
+        { "name": "attendees_ticket_type_idx", "columns": ["ticket_type_id"] }
+      ],
+      "checks": [
+        { "name": "attendees_status_check", "expr": "status IN ('issued', 'transferred', 'void', 'checked_in')", "column": "status" }
+      ]
+    },
+    {
+      "name": "audit_log",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "actor_user_id", "type": "bigint" },
+        { "name": "action", "type": "text", "notNull": true },
+        { "name": "entity_type", "type": "text", "notNull": true },
+        { "name": "entity_id", "type": "bigint" },
+        { "name": "before", "type": "jsonb" },
+        { "name": "after", "type": "jsonb" },
+        { "name": "ip", "type": "inet" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [],
+      "foreignKeys": [
+        { "name": "audit_log_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "audit_log_actor_user_id_fkey", "columns": ["actor_user_id"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "audit_log_entity_idx", "columns": ["entity_type", "entity_id", "created_at DESC"] },
+        { "name": "audit_log_org_created_idx", "columns": ["organization_id", "created_at DESC"] }
+      ],
+      "checks": []
+    },
+    {
+      "name": "check_ins",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "attendee_id", "type": "bigint", "notNull": true },
+        { "name": "event_id", "type": "bigint", "notNull": true },
+        { "name": "checked_in_by", "type": "bigint" },
+        { "name": "device_label", "type": "text" },
+        { "name": "scanned_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "result", "type": "text", "notNull": true, "values": ["ok", "duplicate", "invalid", "wrong_event"] }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [],
+      "foreignKeys": [
+        { "name": "check_ins_attendee_id_fkey", "columns": ["attendee_id"], "table": "attendees", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "check_ins_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "check_ins_checked_in_by_fkey", "columns": ["checked_in_by"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "check_ins_one_ok_per_attendee", "columns": ["attendee_id"], "unique": true, "where": "result = 'ok'" },
+        { "name": "check_ins_event_scanned_idx", "columns": ["event_id", "scanned_at DESC"] }
+      ],
+      "checks": [
+        { "name": "check_ins_result_check", "expr": "result IN ('ok', 'duplicate', 'invalid', 'wrong_event')", "column": "result" }
+      ]
+    },
+    {
+      "name": "discount_codes",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "event_id", "type": "bigint" },
+        { "name": "code", "type": "varchar(32)", "notNull": true },
+        { "name": "kind", "type": "text", "notNull": true, "values": ["percent", "amount"] },
+        { "name": "percent_off", "type": "integer" },
+        { "name": "amount_off_cents", "type": "integer" },
+        { "name": "max_redemptions", "type": "integer" },
+        { "name": "redemption_count", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "starts_at", "type": "timestamptz" },
+        { "name": "ends_at", "type": "timestamptz" },
+        { "name": "created_by", "type": "bigint" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["organization_id", "code"]],
+      "foreignKeys": [
+        { "name": "discount_codes_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "discount_codes_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "discount_codes_created_by_fkey", "columns": ["created_by"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "discount_codes_live_idx", "columns": ["organization_id", "ends_at"], "where": "max_redemptions IS NULL OR redemption_count < max_redemptions" }
+      ],
+      "checks": [
+        { "name": "discount_codes_kind_check", "expr": "kind IN ('percent', 'amount')", "column": "kind" },
+        { "name": "discount_codes_shape_check", "expr": "(kind = 'percent' AND percent_off BETWEEN 1 AND 100 AND amount_off_cents IS NULL) OR (kind = 'amount' AND amount_off_cents > 0 AND percent_off IS NULL)" },
+        { "name": "discount_codes_window_check", "expr": "ends_at IS NULL OR starts_at IS NULL OR ends_at > starts_at" }
+      ]
+    },
+    {
+      "name": "event_sessions",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "event_id", "type": "bigint", "notNull": true },
+        { "name": "seating_zone_id", "type": "bigint" },
+        { "name": "name", "type": "text", "notNull": true },
+        { "name": "position", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "starts_at", "type": "timestamptz", "notNull": true },
+        { "name": "ends_at", "type": "timestamptz", "notNull": true },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["event_id", "name"]],
+      "foreignKeys": [
+        { "name": "event_sessions_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "event_sessions_seating_zone_id_fkey", "columns": ["seating_zone_id"], "table": "seating_zones", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [],
+      "checks": [
+        { "name": "event_sessions_time_check", "expr": "ends_at > starts_at" }
+      ]
+    },
+    {
+      "name": "events",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "public_id", "type": "uuid", "notNull": true, "default": "gen_random_uuid()" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "venue_id", "type": "bigint" },
+        { "name": "created_by", "type": "bigint" },
+        { "name": "title", "type": "text", "notNull": true },
+        { "name": "slug", "type": "varchar(80)", "notNull": true },
+        { "name": "summary", "type": "text" },
+        { "name": "status", "type": "text", "notNull": true, "default": "'draft'", "values": ["draft", "on_sale", "sold_out", "cancelled", "completed"] },
+        { "name": "timezone", "type": "text", "notNull": true },
+        { "name": "doors_open_at", "type": "timestamptz" },
+        { "name": "starts_at", "type": "timestamptz", "notNull": true },
+        { "name": "ends_at", "type": "timestamptz", "notNull": true },
+        { "name": "published_at", "type": "timestamptz" },
+        { "name": "cancelled_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "updated_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["public_id"], ["organization_id", "slug"]],
+      "foreignKeys": [
+        { "name": "events_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "restrict" },
+        { "name": "events_venue_id_fkey", "columns": ["venue_id"], "table": "venues", "refColumns": ["id"], "onDelete": "restrict" },
+        { "name": "events_created_by_fkey", "columns": ["created_by"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "events_org_starts_idx", "columns": ["organization_id", "starts_at DESC"], "where": "cancelled_at IS NULL" },
+        { "name": "events_on_sale_idx", "columns": ["starts_at"], "where": "status = 'on_sale'" }
+      ],
+      "checks": [
+        { "name": "events_status_check", "expr": "status IN ('draft', 'on_sale', 'sold_out', 'cancelled', 'completed')", "column": "status" },
+        { "name": "events_time_check", "expr": "ends_at > starts_at" },
+        { "name": "events_doors_check", "expr": "doors_open_at IS NULL OR doors_open_at <= starts_at" }
+      ]
+    },
+    {
+      "name": "notifications",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "user_id", "type": "bigint", "notNull": true },
+        { "name": "event_id", "type": "bigint" },
+        { "name": "channel", "type": "text", "notNull": true },
+        { "name": "template_key", "type": "text", "notNull": true },
+        { "name": "status", "type": "text", "notNull": true, "default": "'queued'", "values": ["queued", "sent", "failed", "skipped"] },
+        { "name": "sent_at", "type": "timestamptz" },
+        { "name": "error", "type": "text" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [],
+      "foreignKeys": [
+        { "name": "notifications_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "notifications_user_id_fkey", "columns": ["user_id"], "table": "users", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "notifications_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "notifications_queued_idx", "columns": ["created_at"], "where": "status = 'queued'" }
+      ],
+      "checks": [
+        { "name": "notifications_status_check", "expr": "status IN ('queued', 'sent', 'failed', 'skipped')", "column": "status" }
+      ]
+    },
+    {
+      "name": "order_lines",
+      "columns": [
+        { "name": "order_id", "type": "bigint", "notNull": true },
+        { "name": "line_no", "type": "integer", "notNull": true },
+        { "name": "ticket_type_id", "type": "bigint", "notNull": true },
+        { "name": "quantity", "type": "integer", "notNull": true },
+        { "name": "unit_price_cents", "type": "integer", "notNull": true },
+        { "name": "line_total_cents", "type": "integer", "notNull": true }
+      ],
+      "primaryKey": ["order_id", "line_no"],
+      "uniques": [],
+      "foreignKeys": [
+        { "name": "order_lines_order_id_fkey", "columns": ["order_id"], "table": "orders", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "order_lines_ticket_type_id_fkey", "columns": ["ticket_type_id"], "table": "ticket_types", "refColumns": ["id"], "onDelete": "restrict" }
+      ],
+      "indexes": [
+        { "name": "order_lines_ticket_type_idx", "columns": ["ticket_type_id"] }
+      ],
+      "checks": [
+        { "name": "order_lines_quantity_check", "expr": "quantity > 0" },
+        { "name": "order_lines_total_check", "expr": "line_total_cents = unit_price_cents * quantity" }
+      ]
+    },
+    {
+      "name": "orders",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "public_id", "type": "uuid", "notNull": true, "default": "gen_random_uuid()" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "event_id", "type": "bigint", "notNull": true },
+        { "name": "user_id", "type": "bigint" },
+        { "name": "discount_code_id", "type": "bigint" },
+        { "name": "buyer_email", "type": "text", "notNull": true },
+        { "name": "buyer_name", "type": "text" },
+        { "name": "status", "type": "text", "notNull": true, "default": "'cart'", "values": ["cart", "pending", "paid", "partially_refunded", "refunded", "cancelled", "expired"] },
+        { "name": "currency", "type": "char(3)", "notNull": true },
+        { "name": "subtotal_cents", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "discount_cents", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "fee_cents", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "total_cents", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "placed_at", "type": "timestamptz" },
+        { "name": "expires_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "updated_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["public_id"]],
+      "foreignKeys": [
+        { "name": "orders_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "restrict" },
+        { "name": "orders_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "restrict" },
+        { "name": "orders_user_id_fkey", "columns": ["user_id"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" },
+        { "name": "orders_discount_code_id_fkey", "columns": ["discount_code_id"], "table": "discount_codes", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "orders_event_placed_idx", "columns": ["event_id", "placed_at DESC"], "where": "status <> 'cart'" },
+        { "name": "orders_buyer_email_lower_idx", "columns": ["lower(buyer_email)"] },
+        { "name": "orders_expiring_carts_idx", "columns": ["expires_at"], "where": "status = 'cart'" }
+      ],
+      "checks": [
+        { "name": "orders_status_check", "expr": "status IN ('cart', 'pending', 'paid', 'partially_refunded', 'refunded', 'cancelled', 'expired')", "column": "status" },
+        { "name": "orders_total_check", "expr": "total_cents = subtotal_cents - discount_cents + fee_cents" },
+        { "name": "orders_amounts_check", "expr": "subtotal_cents >= 0 AND discount_cents >= 0 AND fee_cents >= 0" }
+      ]
+    },
+    {
+      "name": "org_members",
+      "columns": [
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "user_id", "type": "bigint", "notNull": true },
+        { "name": "role", "type": "text", "notNull": true, "values": ["owner", "admin", "organizer", "finance", "viewer"] },
+        { "name": "invited_by", "type": "bigint" },
+        { "name": "invited_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "accepted_at", "type": "timestamptz" }
+      ],
+      "primaryKey": ["organization_id", "user_id"],
+      "uniques": [],
+      "foreignKeys": [
+        { "name": "org_members_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "org_members_user_id_fkey", "columns": ["user_id"], "table": "users", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "org_members_invited_by_fkey", "columns": ["invited_by"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "org_members_user_idx", "columns": ["user_id"] },
+        { "name": "org_members_pending_idx", "columns": ["organization_id", "invited_at"], "where": "accepted_at IS NULL" }
+      ],
+      "checks": [
+        { "name": "org_members_role_check", "expr": "role IN ('owner', 'admin', 'organizer', 'finance', 'viewer')", "column": "role" }
+      ]
+    },
+    {
+      "name": "organizations",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "public_id", "type": "uuid", "notNull": true, "default": "gen_random_uuid()" },
+        { "name": "parent_org_id", "type": "bigint" },
+        { "name": "name", "type": "text", "notNull": true },
+        { "name": "slug", "type": "varchar(63)", "notNull": true },
+        { "name": "plan", "type": "text", "notNull": true, "default": "'free'", "values": ["free", "pro", "enterprise"] },
+        { "name": "payout_currency", "type": "char(3)", "notNull": true, "default": "'USD'" },
+        { "name": "fee_bps", "type": "integer", "notNull": true, "default": "250" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "updated_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "deleted_at", "type": "timestamptz" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["public_id"], ["slug"]],
+      "foreignKeys": [
+        { "name": "organizations_parent_org_id_fkey", "columns": ["parent_org_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "organizations_live_idx", "columns": ["slug"], "where": "deleted_at IS NULL" }
+      ],
+      "checks": [
+        { "name": "organizations_plan_check", "expr": "plan IN ('free', 'pro', 'enterprise')", "column": "plan" },
+        { "name": "organizations_fee_bps_check", "expr": "fee_bps BETWEEN 0 AND 2000" }
+      ]
+    },
+    {
+      "name": "payments",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "public_id", "type": "uuid", "notNull": true, "default": "gen_random_uuid()" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "order_id", "type": "bigint", "notNull": true },
+        { "name": "payout_batch_id", "type": "bigint" },
+        { "name": "provider", "type": "payment_provider", "notNull": true, "values": ["stripe", "paypal", "manual"] },
+        { "name": "provider_charge_id", "type": "text" },
+        { "name": "amount_cents", "type": "integer", "notNull": true },
+        { "name": "currency", "type": "char(3)", "notNull": true },
+        { "name": "status", "type": "text", "notNull": true, "default": "'pending'", "values": ["pending", "succeeded", "failed", "disputed"] },
+        { "name": "failure_code", "type": "text" },
+        { "name": "paid_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["public_id"], ["provider", "provider_charge_id"]],
+      "foreignKeys": [
+        { "name": "payments_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "restrict" },
+        { "name": "payments_order_id_fkey", "columns": ["order_id"], "table": "orders", "refColumns": ["id"], "onDelete": "restrict" },
+        { "name": "payments_payout_batch_id_fkey", "columns": ["payout_batch_id"], "table": "payout_batches", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "payments_order_idx", "columns": ["order_id"] },
+        { "name": "payments_unbatched_idx", "columns": ["organization_id", "paid_at"], "where": "payout_batch_id IS NULL AND status = 'succeeded'" }
+      ],
+      "checks": [
+        { "name": "payments_status_check", "expr": "status IN ('pending', 'succeeded', 'failed', 'disputed')", "column": "status" },
+        { "name": "payments_amount_check", "expr": "amount_cents > 0" }
+      ]
+    },
+    {
+      "name": "payout_batches",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "period_start", "type": "date", "notNull": true },
+        { "name": "period_end", "type": "date", "notNull": true },
+        { "name": "gross_cents", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "fee_cents", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "net_cents", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "currency", "type": "char(3)", "notNull": true },
+        { "name": "status", "type": "text", "notNull": true, "default": "'open'", "values": ["open", "sent", "paid", "failed"] },
+        { "name": "sent_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["organization_id", "period_start", "period_end"]],
+      "foreignKeys": [
+        { "name": "payout_batches_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "restrict" }
+      ],
+      "indexes": [],
+      "checks": [
+        { "name": "payout_batches_status_check", "expr": "status IN ('open', 'sent', 'paid', 'failed')", "column": "status" },
+        { "name": "payout_batches_period_check", "expr": "period_end >= period_start" },
+        { "name": "payout_batches_net_check", "expr": "net_cents = gross_cents - fee_cents" }
+      ]
+    },
+    {
+      "name": "refunds",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "payment_id", "type": "bigint", "notNull": true },
+        { "name": "order_id", "type": "bigint", "notNull": true },
+        { "name": "requested_by", "type": "bigint" },
+        { "name": "amount_cents", "type": "integer", "notNull": true },
+        { "name": "reason", "type": "text", "notNull": true },
+        { "name": "status", "type": "text", "notNull": true, "default": "'pending'", "values": ["pending", "succeeded", "failed"] },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "settled_at", "type": "timestamptz" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [],
+      "foreignKeys": [
+        { "name": "refunds_payment_id_fkey", "columns": ["payment_id"], "table": "payments", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "refunds_order_id_fkey", "columns": ["order_id"], "table": "orders", "refColumns": ["id"], "onDelete": "restrict" },
+        { "name": "refunds_requested_by_fkey", "columns": ["requested_by"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "refunds_order_idx", "columns": ["order_id"] }
+      ],
+      "checks": [
+        { "name": "refunds_status_check", "expr": "status IN ('pending', 'succeeded', 'failed')", "column": "status" },
+        { "name": "refunds_amount_check", "expr": "amount_cents > 0" }
+      ]
+    },
+    {
+      "name": "seating_zones",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "venue_id", "type": "bigint", "notNull": true },
+        { "name": "name", "type": "text", "notNull": true },
+        { "name": "capacity", "type": "integer", "notNull": true },
+        { "name": "position", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["venue_id", "name"]],
+      "foreignKeys": [
+        { "name": "seating_zones_venue_id_fkey", "columns": ["venue_id"], "table": "venues", "refColumns": ["id"], "onDelete": "cascade" }
+      ],
+      "indexes": [],
+      "checks": [
+        { "name": "seating_zones_capacity_check", "expr": "capacity > 0" }
+      ]
+    },
+    {
+      "name": "ticket_types",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "public_id", "type": "uuid", "notNull": true, "default": "gen_random_uuid()" },
+        { "name": "event_id", "type": "bigint", "notNull": true },
+        { "name": "seating_zone_id", "type": "bigint" },
+        { "name": "name", "type": "text", "notNull": true },
+        { "name": "kind", "type": "text", "notNull": true, "default": "'general'", "values": ["general", "reserved", "vip", "comp"] },
+        { "name": "price_cents", "type": "integer", "notNull": true },
+        { "name": "currency", "type": "char(3)", "notNull": true },
+        { "name": "quantity_total", "type": "integer", "notNull": true },
+        { "name": "quantity_sold", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "max_per_order", "type": "integer", "notNull": true, "default": "10" },
+        { "name": "sales_start_at", "type": "timestamptz" },
+        { "name": "sales_end_at", "type": "timestamptz" },
+        { "name": "position", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["public_id"], ["event_id", "name"]],
+      "foreignKeys": [
+        { "name": "ticket_types_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "ticket_types_seating_zone_id_fkey", "columns": ["seating_zone_id"], "table": "seating_zones", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "ticket_types_available_idx", "columns": ["event_id", "position"], "where": "quantity_sold < quantity_total" }
+      ],
+      "checks": [
+        { "name": "ticket_types_kind_check", "expr": "kind IN ('general', 'reserved', 'vip', 'comp')", "column": "kind" },
+        { "name": "ticket_types_price_check", "expr": "price_cents >= 0" },
+        { "name": "ticket_types_quantity_check", "expr": "quantity_sold >= 0 AND quantity_sold <= quantity_total" },
+        { "name": "ticket_types_max_per_order_check", "expr": "max_per_order > 0" }
+      ]
+    },
+    {
+      "name": "user_devices",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "user_id", "type": "bigint", "notNull": true },
+        { "name": "platform", "type": "text", "notNull": true, "values": ["ios", "android", "web"] },
+        { "name": "push_token", "type": "text", "notNull": true },
+        { "name": "label", "type": "text" },
+        { "name": "last_seen_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["push_token"]],
+      "foreignKeys": [
+        { "name": "user_devices_user_id_fkey", "columns": ["user_id"], "table": "users", "refColumns": ["id"], "onDelete": "cascade" }
+      ],
+      "indexes": [
+        { "name": "user_devices_user_idx", "columns": ["user_id", "last_seen_at DESC"] }
+      ],
+      "checks": [
+        { "name": "user_devices_platform_check", "expr": "platform IN ('ios', 'android', 'web')", "column": "platform" }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "public_id", "type": "uuid", "notNull": true, "default": "gen_random_uuid()" },
+        { "name": "email", "type": "text", "notNull": true },
+        { "name": "full_name", "type": "text" },
+        { "name": "locale", "type": "varchar(8)", "notNull": true, "default": "'en'" },
+        { "name": "password_set_at", "type": "timestamptz" },
+        { "name": "last_seen_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" },
+        { "name": "deleted_at", "type": "timestamptz" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["public_id"]],
+      "foreignKeys": [],
+      "indexes": [
+        { "name": "users_email_lower_key", "columns": ["lower(email)"], "unique": true },
+        { "name": "users_last_seen_idx", "columns": ["last_seen_at DESC"], "where": "deleted_at IS NULL" }
+      ],
+      "checks": [
+        { "name": "users_email_check", "expr": "position('@' in email) > 1" }
+      ]
+    },
+    {
+      "name": "venues",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "name", "type": "text", "notNull": true },
+        { "name": "address_line1", "type": "text" },
+        { "name": "city", "type": "text" },
+        { "name": "country_code", "type": "char(2)", "notNull": true },
+        { "name": "timezone", "type": "text", "notNull": true },
+        { "name": "capacity", "type": "integer" },
+        { "name": "latitude", "type": "numeric(9,6)" },
+        { "name": "longitude", "type": "numeric(9,6)" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["organization_id", "name"]],
+      "foreignKeys": [
+        { "name": "venues_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "cascade" }
+      ],
+      "indexes": [],
+      "checks": [
+        { "name": "venues_capacity_check", "expr": "capacity IS NULL OR capacity > 0" }
+      ]
+    },
+    {
+      "name": "waitlist_entries",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "event_id", "type": "bigint", "notNull": true },
+        { "name": "ticket_type_id", "type": "bigint" },
+        { "name": "user_id", "type": "bigint" },
+        { "name": "email", "type": "text", "notNull": true },
+        { "name": "quantity_wanted", "type": "integer", "notNull": true, "default": "1" },
+        { "name": "status", "type": "text", "notNull": true, "default": "'waiting'", "values": ["waiting", "offered", "converted", "expired"] },
+        { "name": "offered_at", "type": "timestamptz" },
+        { "name": "expires_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [["event_id", "email"]],
+      "foreignKeys": [
+        { "name": "waitlist_entries_event_id_fkey", "columns": ["event_id"], "table": "events", "refColumns": ["id"], "onDelete": "cascade" },
+        { "name": "waitlist_entries_ticket_type_id_fkey", "columns": ["ticket_type_id"], "table": "ticket_types", "refColumns": ["id"], "onDelete": "setnull" },
+        { "name": "waitlist_entries_user_id_fkey", "columns": ["user_id"], "table": "users", "refColumns": ["id"], "onDelete": "setnull" }
+      ],
+      "indexes": [
+        { "name": "waitlist_entries_waiting_idx", "columns": ["event_id", "created_at"], "where": "status = 'waiting'" }
+      ],
+      "checks": [
+        { "name": "waitlist_entries_status_check", "expr": "status IN ('waiting', 'offered', 'converted', 'expired')", "column": "status" },
+        { "name": "waitlist_entries_quantity_check", "expr": "quantity_wanted BETWEEN 1 AND 10" }
+      ]
+    },
+    {
+      "name": "webhook_deliveries",
+      "columns": [
+        { "name": "id", "type": "bigint", "notNull": true, "default": "identity" },
+        { "name": "organization_id", "type": "bigint", "notNull": true },
+        { "name": "event_name", "type": "text", "notNull": true },
+        { "name": "target_url", "type": "text", "notNull": true },
+        { "name": "payload", "type": "jsonb", "notNull": true },
+        { "name": "status", "type": "text", "notNull": true, "default": "'pending'", "values": ["pending", "delivered", "failed"] },
+        { "name": "attempt_count", "type": "integer", "notNull": true, "default": "0" },
+        { "name": "response_code", "type": "integer" },
+        { "name": "last_attempt_at", "type": "timestamptz" },
+        { "name": "created_at", "type": "timestamptz", "notNull": true, "default": "now()" }
+      ],
+      "primaryKey": ["id"],
+      "uniques": [],
+      "foreignKeys": [
+        { "name": "webhook_deliveries_organization_id_fkey", "columns": ["organization_id"], "table": "organizations", "refColumns": ["id"], "onDelete": "cascade" }
+      ],
+      "indexes": [
+        { "name": "webhook_deliveries_retry_idx", "columns": ["last_attempt_at"], "where": "status = 'failed' AND attempt_count < 8" }
+      ],
+      "checks": [
+        { "name": "webhook_deliveries_status_check", "expr": "status IN ('pending', 'delivered', 'failed')", "column": "status" },
+        { "name": "webhook_deliveries_attempt_check", "expr": "attempt_count >= 0" }
+      ]
+    }
+  ]
+}
