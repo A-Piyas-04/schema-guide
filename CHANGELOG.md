@@ -17,7 +17,7 @@ First release.
 **The page**
 
 - Home, Tour, Explore (areas → tables → About / Columns / Links / Indexes), Tools (Map with six views, Delete impact, Join path), Reference. One offline file, opening in light mode with a remembered dark toggle.
-- Every page's footer credits the plugin and carries a **Meet the dev** button linking to the author's portfolio.
+- Every page's footer carries a **Meet the dev** button linking to the author's portfolio.
 
 **Honesty about what it knows**
 

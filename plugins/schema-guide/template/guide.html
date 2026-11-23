@@ -666,10 +666,12 @@ details.own .tree{margin-top:2px}
 .val-row > a b{color:var(--ink);font-weight:600}
 .val-hint{margin:6px 0 0;font-size:.8rem;color:var(--muted)}
 .caveat{display:block;margin-top:7px;opacity:.85}
-.credit{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
-.credit a{color:inherit}
-.dev-link{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1.5px solid var(--line);border-radius:999px;font-size:.85rem;font-weight:600;color:var(--ink-2);text-decoration:none;white-space:nowrap}
-.dev-link:hover,.dev-link:focus-visible{border-color:var(--accent);color:var(--accent)}
+:root{--gold:#9A7B1F; --gold-line:rgba(190,154,58,.5); --gold-aura:rgba(190,154,58,.14)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--gold:#E0C274; --gold-line:rgba(224,194,116,.42); --gold-aura:rgba(224,194,116,.12)}}
+:root[data-theme="dark"]{--gold:#E0C274; --gold-line:rgba(224,194,116,.42); --gold-aura:rgba(224,194,116,.12)}
+.credit{display:flex;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.dev-link{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border:1.5px solid var(--gold-line);border-radius:999px;font-size:.85rem;font-weight:600;color:var(--gold);text-decoration:none;white-space:nowrap;box-shadow:0 0 0 3px var(--gold-aura),0 1px 7px var(--gold-aura);transition:box-shadow .15s,border-color .15s}
+.dev-link:hover,.dev-link:focus-visible{border-color:var(--gold);box-shadow:0 0 0 5px var(--gold-aura),0 2px 12px var(--gold-aura)}
 .dev-link svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 @media (max-width:560px){
   .val-row{grid-template-columns:1fr}
@@ -1069,8 +1071,7 @@ function buildRefPages() {
   const when = src.readAt ? new Date(src.readAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const kind = { postgres: 'PostgreSQL', mysql: 'MySQL', sqlite: 'SQLite', files: 'schema files', inferred: 'application code' }[src.kind] || 'database';
   const credit =
-    `<span class="credit"><span>Built with <a href="https://github.com/A-Piyas-04/schema-guide" target="_blank" rel="noopener noreferrer">schema-guide</a> by Ahnaf Shahriar Pias</span>` +
-    `<a class="dev-link" href="https://ahnaf-s-p.vercel.app" target="_blank" rel="noopener noreferrer">Meet the dev` +
+    `<span class="credit"><a class="dev-link" href="https://ahnaf-s-p.vercel.app" target="_blank" rel="noopener noreferrer">Meet the dev` +
     `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></a></span>`;
   const written =
     `<span class="caveat">The wording on these pages was written by Claude from this project's code, and can be wrong or out of date. Check anything you are about to depend on; corrections go in <code>.schema-guide/guide.json</code>.</span>`;
