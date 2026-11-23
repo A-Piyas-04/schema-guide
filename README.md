@@ -19,6 +19,26 @@ On Claude Code before 2.1.275, add the marketplace first:
 /plugin install schema-guide@schema-guide-plugins
 ```
 
+### In the VS Code extension
+
+The Claude Code extension for VS Code has its own plugin manager, so you don't need the terminal:
+
+1. Open the Claude Code panel and type `/plugins` in the prompt box. The **Manage plugins** dialog opens.
+2. On the **Marketplaces** tab, enter `A-Piyas-04/schema-guide` and add it.
+3. On the **Plugins** tab, find **schema-guide** and click **Install**.
+4. Pick a scope:
+   - **Install for you**: every project you open (user scope).
+   - **Install for this project**: written to `.claude/settings.json` for your collaborators (project scope).
+   - **Install locally**: only you, only this repository (local scope).
+5. The change applies to the open sessions in that VS Code window. If the dialog shows **Restart Claude to apply plugin changes**, restart the session.
+6. Type `/` in the prompt box and look for `/schema-guide:build` and `/schema-guide:update`.
+
+Project scope switches the plugin on for collaborators but doesn't download it for them. Each collaborator runs this once per clone:
+
+```sh
+claude plugin install schema-guide@schema-guide-plugins --scope project
+```
+
 ## Use
 
 ```
