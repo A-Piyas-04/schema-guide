@@ -9,7 +9,7 @@ A Claude Code plugin that turns your database schema into a step-by-step, offlin
 - **Join path:** the shortest join between any two tables, as SQL (and Kysely or Knex).
 - **Reference:** detailed lists, one topic per page.
 
-One self-contained HTML file. No build step, no server, no dependencies — open it from `file://` or commit it and let your docs site serve it.
+One self-contained HTML file. No build step, no server, no dependencies — open it from `file://` or commit it and let your docs site serve it. It opens in light mode; the dark toggle is remembered per reader.
 
 ## Install
 

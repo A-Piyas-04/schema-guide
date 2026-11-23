@@ -56,7 +56,7 @@ Click any table in that list to drop it into the middle of its own map — what 
 
 ![The events table at the centre of its own map: 3 tables it points to, 8 pointing to it](docs/screenshots/hubs-table.png)
 
-Plus **Explore** (every area and table, with columns, links, indexes and rules in plain words), **Reference** (every link, index and rule, one topic per page), and five more map views: areas, dependency layers, ownership trees, and every value list. Light and dark, keyboard-navigable, and sized for a phone as well as a desktop.
+Plus **Explore** (every area and table, with columns, links, indexes and rules in plain words), **Reference** (every link, index and rule, one topic per page), and five more map views: areas, dependency layers, ownership trees, and every value list. Opens in light mode, with a dark toggle that each reader's browser remembers. Keyboard-navigable, and sized for a phone as well as a desktop.
 
 Three files land in your project: `docs/schema-guide.html` (the page), `.schema-guide/facts.json` (the schema) and `.schema-guide/guide.json` (the words — yours to edit). Commit all three.
 
