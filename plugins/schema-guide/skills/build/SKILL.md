@@ -21,15 +21,25 @@ If `.schema-guide/guide.json` already exists, the guide is set up: say so, then 
 
 If the project writes its docs to a folder that already exists with different capitalisation (`Docs/`, `doc/`), use that folder in `--out` rather than creating a second one.
 
-## 2. Find the schema, or stop
+## 2. Find out what the project actually has
 
-This plugin documents **relational** schemas. Before anything else, confirm the project has one — at least one of:
+Before reading anything, work out which of three cases you are in. Search the repo: `.env*`, `docker-compose*.yml` and config for a database URL; `*.db` / `*.sqlite`; `migrations/`, `schema.rb`, `structure.sql`, `schema.prisma`; ORM table definitions (Drizzle, TypeORM, Sequelize, SQLAlchemy, Django, Laravel, Ent, JPA `@Entity`).
 
-- a reachable PostgreSQL, MySQL/MariaDB or SQLite database;
-- a SQLite/`.db` file in the repo;
-- SQL migrations, `schema.rb`, `structure.sql`, `schema.prisma`, or ORM table definitions (Drizzle, TypeORM, Sequelize, SQLAlchemy, Django, Laravel, Ent, JPA `@Entity`).
+| What you found | Case | `source.kind` |
+| --- | --- | --- |
+| A database you can connect to, or a `.db` file | **A — read it** | `postgres` / `mysql` / `sqlite` |
+| No reachable database, but real schema sources that declare tables and columns | **B — write it from those files** | `files` |
+| No schema anywhere: the project persists to key-value storage, documents, bundled JSON, or nothing at all | **C — ask first** | `inferred` |
 
-**If none of those exist, stop.** Tell the user the project has no relational schema to document, name what you looked for, and write nothing. Projects that persist only to key-value storage (AsyncStorage, Redis, `localStorage`), document stores, or bundled JSON files are out of scope. Do not build a schema out of TypeScript interfaces, API types or JSON fixtures: the page would look exactly as authoritative as one read from a live database, and every table in it would be invented.
+**Case C is not a failure, and it is not business as usual.** Stop and tell the user plainly:
+
+> This project has no database. I found no SQL schema, no migrations and no ORM model definitions — \<name what you did find, e.g. "ten AsyncStorage keys in `src/services/storage.ts` and three bundled JSON files"\>.
+>
+> I can propose a schema instead: I'd read the app's types, storage layer, services and screens, and design the tables the project would need. Every page would be labelled a proposal, because none of it would exist yet. Want that, or shall I stop here?
+
+Build it only if they say yes, and then set `"kind": "inferred"` with `source.inferredFrom` naming what you read. The page then carries a large notice on Home, a strip on every other page, and "(no database)" in its title. Never label a proposal `files` — that claims the tables exist.
+
+If they say no, or don't answer, write nothing.
 
 ## 3. Read the schema
 
@@ -38,7 +48,14 @@ This plugin documents **relational** schemas. Before anything else, confirm the 
    - Client missing (`psql`, `mysql`): look for it (e.g. `C:\Program Files\PostgreSQL\*\bin`, Homebrew, `/usr/lib/postgresql/*/bin`) and add `--client <path>`.
    - Postgres tables outside `public` are included; `--schema <name>` limits it to one schema.
 3. Several databases (one per service, a separate analytics database): read each into its own file (`CLI read "<url>" --facts .schema-guide/<db>.json`), then merge the tables into one `.schema-guide/facts.json`, setting `"database"` on every table. Ask the user first if it is more than a handful.
-4. If no database can be reached (not running, no client, no credentials) but the schema sources from step 2 exist, write `.schema-guide/facts.json` yourself from those sources, following `${CLAUDE_PLUGIN_ROOT}/reference/facts-format.md`, and tell the user the schema was read from files, not from a server.
+4. **Case B.** No database can be reached (not running, no client, no credentials) but schema sources exist: write `.schema-guide/facts.json` yourself from those sources, following `${CLAUDE_PLUGIN_ROOT}/reference/facts-format.md`, and tell the user the schema came from files, not from a server.
+5. **Case C**, once the user has agreed. Read the code and design the schema it implies — this is real analysis, not transcription:
+   - the storage layer (what each key or collection holds, and its shape);
+   - the types and the data actually in bundled JSON or fixtures, including fields the types don't mention;
+   - the services, screens and API handlers that read and write it: what is looked up by what, what is listed and sorted, what is counted;
+   - anything that is already a de-facto key (an id, a slug, a date used to group by).
+
+   Turn that into tables with real primary keys, foreign keys with the delete rule the app's behaviour implies, indexes for the lookups you actually saw, and value lists taken from the unions and enums in the code. Write `"kind": "inferred"` and `source.inferredFrom`. Say in `guide.json` where each decision came from, and in `project.source` name the files you read. Do not invent features the app doesn't have.
 
 Record relationships the code relies on but the database does not enforce (a bare `rider_id` with no FOREIGN KEY, anything crossing a service boundary) as `"enforced": false` links. Without them every delete looks free and the map comes out empty; recorded as ordinary foreign keys they make the page promise cascades that do not exist.
 
@@ -62,4 +79,4 @@ Run `CLI build`, then `CLI check --browser`. Fix every error (usually a misspelt
 
 ## 6. Report
 
-Tell the user where the page is (the path `build` printed); the counts (tables, links, areas, tour steps); any warnings left; and to run `/schema-guide:update` after a schema change. If the facts came from files rather than a server, say so — the page says so too. Suggest committing `.schema-guide/guide.json`, `.schema-guide/facts.json` and the page; `.schema-guide/facts.prev.json` can be git-ignored.
+Tell the user where the page is (the path `build` printed); the counts (tables, links, areas, tour steps); any warnings left; and to run `/schema-guide:update` after a schema change. Say where the schema came from, in the same words the page uses: read from the database, written from schema files, or **proposed from application code and not yet real**. Never report a case C build as documentation of the project's database. Suggest committing `.schema-guide/guide.json`, `.schema-guide/facts.json` and the page; `.schema-guide/facts.prev.json` can be git-ignored.

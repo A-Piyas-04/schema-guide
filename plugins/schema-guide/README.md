@@ -26,7 +26,17 @@ On Claude Code before 2.1.275: `/plugin marketplace add A-Piyas-04/schema-guide`
 | `/schema-guide:build [database-url-or-file] [--out path]` | First time in a project |
 | `/schema-guide:update [database-url-or-file]` | After any schema change |
 
-Both read the live schema (PostgreSQL, MySQL/MariaDB or SQLite). When no database is reachable, Claude writes the schema from your migrations or ORM model definitions instead, and the page says so. Claude then writes the explanations from your code, builds the page and checks it.
+Both read the live schema (PostgreSQL, MySQL/MariaDB or SQLite). Claude then writes the explanations from your code, builds the page and checks it.
+
+The page never claims more than its source supports:
+
+| Your project | What happens | What the page says |
+| --- | --- | --- |
+| A database it can reach | The CLI introspects it | Nothing extra; these are facts |
+| A schema but no running database (migrations, ORM models, `@Entity`) | Claude writes the schema from those files | "Written from schema files, not verified against a running database" |
+| No schema at all (AsyncStorage, Redis, documents, bundled JSON) | `build` **stops and asks** before writing anything. If you want one, Claude reads the storage layer, types, fixtures and the services that query them, and proposes a schema | A large notice on Home, a strip on every page, "A proposed database for …" and "(no database)" in the title |
+
+The third case is a design sketch, not documentation, and the page says so everywhere so nobody can mistake it six months later.
 
 `update` prints exactly what changed since the last read — tables, columns, links, indexes, checks and value lists added, removed or altered — and rewords only those parts, so your wording stays put.
 
@@ -41,7 +51,6 @@ Both commands are user-invoked only, so nothing about this plugin enters Claude'
 
 ## Requirements
 
-- **A relational schema.** A reachable PostgreSQL, MySQL/MariaDB or SQLite database, a `.db` file, or SQL migrations / ORM table definitions (Prisma, Drizzle, TypeORM, Sequelize, SQLAlchemy, Django, Laravel, JPA). Projects that persist only to key-value storage, document stores or JSON files have no schema to document, and `build` will tell you so rather than invent one.
 - Node.js 18 or newer (22.5+ for SQLite without the `sqlite3` CLI).
 - `psql` for PostgreSQL, or `mysql` for MySQL/MariaDB. Not needed for SQLite or for reading from files.
 - Chrome, Edge or Chromium (optional) for the in-browser check.

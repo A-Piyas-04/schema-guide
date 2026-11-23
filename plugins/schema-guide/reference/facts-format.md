@@ -13,7 +13,7 @@ Only when no database can be reached. Then read the project's **schema sources**
 | Django / Rails / Laravel / SQLAlchemy | `models.py`, migrations, `models.rb` |
 | JPA / Hibernate (Spring Boot) | `@Entity` classes — see "JPA" below |
 
-**A schema source declares tables, columns and keys.** Plain TypeScript interfaces, API response types, key-value stores (AsyncStorage, Redis, `localStorage`), document collections and bundled JSON files are **not** schema sources. If the project has none of the sources above and no database file, stop and tell the user this plugin needs a relational database — do not invent tables from application types. A guide built from a guessed schema looks exactly as authoritative as one read from a live server, which makes it worse than no guide.
+**A schema source declares tables, columns and keys.** Plain TypeScript interfaces, API response types, key-value stores (AsyncStorage, Redis, `localStorage`), document collections and bundled JSON files are **not** schema sources. A schema derived from those is a proposal, not a description, and must be marked `"kind": "inferred"` — see below. Never pass one off as `"files"`: a guessed schema that looks as authoritative as one read from a live server is worse than no guide.
 
 ```json
 {
@@ -46,7 +46,16 @@ Only when no database can be reached. Then read the project's **schema sources**
 
 Rules:
 
-- `source.kind`: `postgres` | `mysql` | `sqlite` | `files`. With `files`, set `dialect` (`postgres`, `mysql` or `sqlite`) for SQL quoting. `files` also puts a "written by hand from schema files" note on the page, so never use it for a schema you actually read from a server.
+- `source.kind`: `postgres` | `mysql` | `sqlite` | `files` | `inferred`. It sets how much the page is allowed to claim, so it must match where the schema really came from:
+
+  | `kind` | Where it came from | What the page says |
+  | --- | --- | --- |
+  | `postgres` `mysql` `sqlite` | Read from a running database by `read` | Nothing; the facts speak for themselves |
+  | `files` | Written by hand from real schema sources (migrations, ORM models, `@Entity`) | A note on Home and in the footer: written from schema files, not verified against a server |
+  | `inferred` | **No schema exists.** The shape was proposed by reading application code | A large notice on Home, a strip on every other page, and "(no database)" in the page title |
+
+  With `files` or `inferred`, set `dialect` (`postgres`, `mysql` or `sqlite`) for SQL quoting.
+- `source.inferredFrom`: required with `kind: "inferred"`. Mini-markdown naming exactly what was read, shown on the page — e.g. ``"the TypeScript types in `src/types/` and the AsyncStorage keys in `src/services/storage.ts`"``.
 - Types as written in the schema, short forms (`timestamptz`, `varchar(80)`, `text[]`).
 - `notNull`: true for NOT NULL and primary-key columns; leave it out otherwise.
 - `onDelete`: `cascade` | `setnull` | `setdefault` | `restrict`. No action, missing, and `RESTRICT` are all `restrict`.

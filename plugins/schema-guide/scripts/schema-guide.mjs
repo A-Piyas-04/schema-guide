@@ -127,7 +127,9 @@ function escHtml(s) {
 }
 
 export function render(facts, guide) {
-  const title = escHtml(`${guide.project.name} schema guide`);
+  // An inferred schema says so in the tab and in anything that bookmarks or links to the page.
+  const inferred = (facts.source || {}).kind === 'inferred';
+  const title = escHtml(inferred ? `${guide.project.name} proposed schema (no database)` : `${guide.project.name} schema guide`);
   const LS = String.fromCharCode(8232);
   const PS = String.fromCharCode(8233);
   const data = JSON.stringify({ facts, guide }).replace(/</g, '\\u003c').split(LS).join('\\u2028').split(PS).join('\\u2029');

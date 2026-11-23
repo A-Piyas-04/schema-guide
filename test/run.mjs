@@ -258,7 +258,44 @@ console.log('Bad input');
   ok(cd.code === 1 && /both called "customers"/.test(cd.out) && /unique/.test(cd.out), 'two tables with the same name fail check');
 }
 
-/* ---------- 6. 300 tables ---------- */
+/* ---------- 6. A schema inferred from code, where the project has no database ---------- */
+console.log('Inferred schema (no database in the project)');
+{
+  const dir = fresh('inferred');
+  mkdirSync(join(dir, '.schema-guide'));
+  const facts = JSON.parse(JSON.stringify(SPLIT));
+  facts.source = { kind: 'inferred', name: 'notes', dialect: 'sqlite', inferredFrom: 'the TypeScript types in `src/types/`' };
+  for (const t of facts.tables) delete t.database;
+  writeFileSync(join(dir, '.schema-guide/facts.json'), JSON.stringify(facts));
+  writeFileSync(join(dir, '.schema-guide/guide.json'), JSON.stringify({ project: { name: 'Notes' } }));
+
+  const b = cli(dir, 'build');
+  ok(b.code === 0, 'builds');
+  const c = cli(dir, 'check', ...(BROWSER ? ['--browser'] : []));
+  ok(c.code === 0 && /inferred from application code and does not exist/.test(c.out), 'check passes and warns that the schema does not exist');
+
+  const html = readFileSync(join(dir, 'docs/schema-guide.html'), 'utf8');
+  ok(/<title>Notes proposed schema \(no database\)<\/title>/.test(html), 'the page title says there is no database');
+
+  const g = engineOf(dir);
+  const home = g.viewHome();
+  ok(/class="noschema"/.test(home) && /Notes has no database\./.test(home), 'Home carries the large "no database" notice');
+  ok(/A proposed database for Notes/.test(home), 'and the headline calls it a proposal');
+  ok(/None of it exists yet\./.test(home) && /src\/types\//.test(home), 'and says nothing exists yet, naming what it was inferred from');
+
+  // Readers arrive by deep link, so every other page has to say it too.
+  ok(/class="strip"/.test(html) && /Proposed schema\./.test(html), 'the per-page strip is in the page');
+
+  // Without inferredFrom, check says so rather than rendering a vague notice.
+  const bare = fresh('inferred-bare');
+  mkdirSync(join(bare, '.schema-guide'));
+  const noFrom = JSON.parse(JSON.stringify(facts));
+  delete noFrom.source.inferredFrom;
+  writeFileSync(join(bare, '.schema-guide/facts.json'), JSON.stringify(noFrom));
+  ok(/set source.inferredFrom/.test(cli(bare, 'check').out), 'check asks for source.inferredFrom when it is missing');
+}
+
+/* ---------- 7. 300 tables ---------- */
 console.log('300-table schema');
 {
   const dir = fresh('big');
@@ -278,7 +315,7 @@ console.log('300-table schema');
   ok(c.code === 0, `check passes in ${((Date.now() - t0) / 1000).toFixed(1)} s: ${c.out.trim().split('\n').pop()}`);
 }
 
-/* ---------- 7. Real servers, when given ---------- */
+/* ---------- 8. Real servers, when given ---------- */
 for (const [label, url] of [['PostgreSQL', process.env.TEST_PG_URL], ['MySQL', process.env.TEST_MYSQL_URL]]) {
   if (!url) {
     console.log(`${label}: skipped (set TEST_${label === 'MySQL' ? 'MYSQL' : 'PG'}_URL to a scratch database with the fixture schema)`);

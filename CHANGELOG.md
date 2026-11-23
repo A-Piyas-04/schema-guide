@@ -22,8 +22,8 @@ First release.
 
 Three real codebases were used to find out where the plugin lies; [`docs/evaluation.md`](docs/evaluation.md) has the detail.
 
-- `build` stops on a project with no relational schema instead of inventing tables from application types or JSON files.
-- A schema written from files rather than read from a server says so on the page.
+- Three provenance levels, each with the wording it earns. A schema **read** from a database claims nothing extra; one **written from schema files** says so on Home and in the footer; one **inferred** from application code, where the project has no database at all, gets a large notice on Home, a strip on every other page, "A proposed database for …" as its headline and "(no database)" in its title.
+- On a project with no schema, `build` stops and asks before writing anything, rather than inventing tables from application types and presenting them as documentation. If the user wants a proposal, it reads the storage layer, types, fixtures and the services that query them, and designs one — labelled as a proposal everywhere.
 - `"enforced": false` records a reference the database doesn't enforce: drawn dashed, excluded from cascades, and shown in delete impact as rows left pointing at nothing — instead of "the delete always succeeds".
 - `"database"` groups tables by database; join path declines to offer SQL that would cross a boundary, and `check` errors on an enforced foreign key that crosses one.
 - `check` warns on a schema with no links at all, and on a reference page that would silently vanish.

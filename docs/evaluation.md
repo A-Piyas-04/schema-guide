@@ -6,7 +6,7 @@ Before 1.0, `schema-guide` was run end to end on three real codebases of deliber
 | --- | --- | --- | --- |
 | **A** | FastAPI + SQLModel, SQLite file in the repo | 24 tables, 44 foreign keys, 9 indexes, 0 CHECKs | Read live. 197 pages rendered, 34 maps without overlaps, `check --browser` passed |
 | **B** | Spring Boot, 7 services, 7 PostgreSQL databases, JPA entities | 14 tables, 89 columns, **0** foreign key constraints | Built from entity classes. 130 pages rendered, passed — and was half wrong |
-| **C** | React Native / Expo, AsyncStorage + bundled JSON | none | Produced a 9-table schema that does not exist |
+| **C** | React Native / Expo, AsyncStorage + bundled JSON | none | Produced a 9-table schema that does not exist, and labelled it documentation |
 
 Case A is what the plugin was built for, and it held up: the only defect was cosmetic. Cases B and C are where it failed, and both failures had the same shape — the pipeline reported success on output that was not true. Every finding below is fixed in 1.0; the commits are in the history.
 
@@ -41,12 +41,22 @@ Browser: 22 pages at 1300px, canvas: focus, drag and zoom work, 22 pages at 520p
 
 A 148 KB page headed "The … database, one step at a time", with a Delete impact page explaining cascades that can never happen, and a footer reading "Tables, columns and links **were read from** the schema files". Nothing in it was checkable against the repo, and it carried exactly the visual authority of a page introspected from a live server. The final step of the skill then told the user to commit it, and `/schema-guide:update` would have refreshed the fiction on every run while `guide-format.md` instructed the next model to preserve its wording word for word.
 
-**Fixed:**
+**Fixed.** The defect was never that a schema got proposed — a proposal is useful, and for a project about to add a database it may be the most useful thing the tool can do. The defect was the register: a proposal presented as a description, with no way for a reader to tell. So the fix separates the two rather than banning one.
 
-- The build skill now **stops** before reading anything unless the project has a reachable database, a `.db` file, or sources that genuinely declare tables and columns. It names what it looked for and writes nothing. `update` re-checks the same rule instead of refreshing.
-- `facts-format.md` states that application types, API types, key-value stores and JSON fixtures are not schema sources, and why a guessed schema is worse than no guide.
-- A schema written from files now says so **on the page** — a banner on Home, not just a footer line, and the footer no longer claims the tables "were read from" anything.
-- The plugin README lists a relational schema as the first requirement.
+`build` now classifies the project before reading anything, and the page carries whichever claim the source supports:
+
+| Source | `kind` | What the page says |
+| --- | --- | --- |
+| A running database | `postgres` `mysql` `sqlite` | Nothing; the facts speak for themselves |
+| Real schema sources, no server | `files` | A note on Home and in the footer: written from schema files, not verified |
+| No schema at all | `inferred` | A large notice on Home, a strip on every other page, "(no database)" in the title |
+
+- In the third case the skill **stops and asks** before writing anything, naming what it found instead of a schema. If the user declines, nothing is written.
+- If they accept, the proposal is built properly — from the storage layer, the types, the fixture data and the services and screens that query it — and labelled as a proposal everywhere, including the page title and the footer. The headline becomes "A proposed database for …" rather than "The … database, one step at a time".
+- `check` warns on every `inferred` build, and again if `source.inferredFrom` doesn't say what was read.
+- `update` keeps `kind: "inferred"` until a real schema appears, and says so each time.
+- `facts-format.md` states that application types, key-value stores and JSON fixtures are not schema sources, and that a schema derived from them must be marked `inferred`.
+- A schema written from files now says so **on the page**, not just in a footer line that claimed the tables "were read from" something.
 
 ## Smaller defects, all fixed
 
@@ -75,6 +85,7 @@ The authoring format also proved expressive enough to carry everything the evalu
 
 - **Several databases are described, not introspected together.** `read` connects to one database at a time; a multi-database `facts.json` is assembled by reading each in turn and merging. Table names must still be unique across the whole file.
 - **`enforced: false` is a human judgment.** Nothing can verify that a bare `rider_id` really points at `riders`, so `check` only enforces internal consistency.
+- **A proposed (`inferred`) schema is a design, not a record.** Nothing validates it against anything, because there is nothing to validate against. The labelling is what makes it safe, and the labelling is enforced by the template rather than by the model.
 - **A schema built from files is as current as the files.** With Hibernate's `ddl-auto: update` or any ORM that creates tables at startup, the live database may hold columns the models no longer declare.
 - Only PostgreSQL, MySQL/MariaDB and SQLite can be read directly. Anything else goes through the hand-written path.
 

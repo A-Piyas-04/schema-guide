@@ -238,6 +238,15 @@ footer{max-width:760px;margin:0 auto;padding:0 20px 48px;color:var(--muted);font
 .rule.dangle{border-color:var(--dangle);background:var(--dangle-soft)}
 .unverified{display:flex;gap:10px;align-items:flex-start;margin:0 0 18px;padding:10px 13px;border:1px solid var(--dangle);border-radius:10px;background:var(--dangle-soft);font-size:14px;line-height:1.45}
 .unverified b{white-space:nowrap}
+.noschema{margin:0 0 26px;padding:20px 22px;border:2px solid var(--cascade);border-radius:14px;background:var(--cascade-soft)}
+.noschema h2{margin:0 0 10px;font-size:clamp(1.35rem,3.6vw,1.9rem);line-height:1.2;letter-spacing:-.01em;color:var(--cascade)}
+.noschema p{margin:0 0 8px;font-size:clamp(1rem,2.2vw,1.1rem);line-height:1.5}
+.noschema p:last-child{margin-bottom:0}
+.noschema .what{font-size:.92rem;color:var(--muted)}
+.strip{display:block;margin:0 0 18px;padding:9px 14px;border-radius:9px;font-size:14px;line-height:1.4;border:1px solid var(--cascade);background:var(--cascade-soft)}
+.strip b{color:var(--cascade)}
+.strip.soft{border-color:var(--dangle);background:var(--dangle-soft)}
+.strip.soft b{color:var(--dangle)}
 .map .edge text{font-family:var(--mono);font-size:11px;fill:var(--muted);paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
 .map .edge text.count{font-family:var(--font);font-size:12px;font-weight:600;fill:var(--ink-2)}
 .map.focusing .edge{opacity:.07}
@@ -726,7 +735,11 @@ const GUIDE = DATA.guide || {};
 const PROJECT = { name: 'This project', code: ['sql'], ...(GUIDE.project || {}) };
 const DIALECT = { mysql: 'mysql', mariadb: 'mysql', sqlite: 'sqlite' }[(FACTS.source || {}).dialect || (FACTS.source || {}).kind] || 'postgres';
 const BRAND = `${PROJECT.name} schema guide`;
-const HEADLINE = PROJECT.headline ? md(PROJECT.headline) : `The ${escHtml(PROJECT.name)} database, one step at a time`;
+const HEADLINE = PROJECT.headline
+  ? md(PROJECT.headline)
+  : (FACTS.source || {}).kind === 'inferred'
+    ? `A proposed database for ${escHtml(PROJECT.name)}`
+    : `The ${escHtml(PROJECT.name)} database, one step at a time`;
 const HL = { label: 'new', short: 'added recently', note: 'Added recently.', tables: [], columns: [], indexes: [], ...(GUIDE.highlight || {}) };
 const LABELS = {
   refused: 'Can be refused',
@@ -1048,12 +1061,15 @@ function buildRefPages() {
   if (!foot) return;
   const src = FACTS.source || {};
   const when = src.readAt ? new Date(src.readAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-  const kind = { postgres: 'PostgreSQL', mysql: 'MySQL', sqlite: 'SQLite', files: 'schema files' }[src.kind] || 'database';
-  foot.innerHTML = PROJECT.footer
-    ? md(PROJECT.footer)
-    : src.kind === 'files'
-      ? `${PROJECT.source ? `Source of truth: ${md(PROJECT.source)}. ` : ''}Tables, columns and links were written by hand from the project's schema files${when ? ` on ${when}` : ''}, not read from a running database.`
-      : `${PROJECT.source ? `Source of truth: ${md(PROJECT.source)}. ` : ''}Tables, columns and links were read from the ${kind} database${when ? ` on ${when}` : ''}.`;
+  const kind = { postgres: 'PostgreSQL', mysql: 'MySQL', sqlite: 'SQLite', files: 'schema files', inferred: 'application code' }[src.kind] || 'database';
+  foot.innerHTML =
+    src.kind === 'inferred'
+      ? `Proposed schema. This project has no database: the tables, columns and links above were inferred from ${md(src.inferredFrom || 'the application code')}${when ? ` on ${when}` : ''} and do not exist.${PROJECT.footer ? ` ${md(PROJECT.footer)}` : ''}`
+      : PROJECT.footer
+        ? md(PROJECT.footer)
+        : src.kind === 'files'
+          ? `${PROJECT.source ? `Source of truth: ${md(PROJECT.source)}. ` : ''}Tables, columns and links were written by hand from the project's schema files${when ? ` on ${when}` : ''}, not read from a running database.`
+          : `${PROJECT.source ? `Source of truth: ${md(PROJECT.source)}. ` : ''}Tables, columns and links were read from the ${kind} database${when ? ` on ${when}` : ''}.`;
 })();
 
 const app = document.getElementById('app');
@@ -1142,7 +1158,11 @@ function viewHome() {
   return `<section>
     <h1>${HEADLINE}</h1>
     ${UNVERIFIED}
-    <p class="lede">${count(TABLES.length, 'table holds', 'tables hold')} everything the app stores. If this is new to you, start with the tour.</p>
+    <p class="lede">${
+      INFERRED
+        ? `${count(TABLES.length, 'proposed table', 'proposed tables')}, grouped the way the app already works. Start with the tour to see the shape of it.`
+        : `${count(TABLES.length, 'table holds', 'tables hold')} everything the app stores. If this is new to you, start with the tour.`
+    }</p>
     <div class="paths">
       <a class="path primary" href="#tour/1"><b>Take the tour</b><span>${TOUR.length} short steps, one idea each</span></a>
       <a class="path" href="#explore"><b>Explore the tables</b><span>Pick an area, then open any table</span></a>
@@ -1327,10 +1347,30 @@ const fold = (summary, inner, small = '') => `<details><summary>${summary}${smal
 
 const REF_PAGES = buildRefPages();
 
-/** Shown on Home when the schema was written by hand: the reader can't otherwise tell. */
-const UNVERIFIED =
-  (FACTS.source || {}).kind === 'files'
+/* How much the page is allowed to claim:
+   a live database > a schema written from real schema files > a shape inferred from application code. */
+const SOURCE_KIND = (FACTS.source || {}).kind;
+const INFERRED = SOURCE_KIND === 'inferred';
+const FROM_FILES = SOURCE_KIND === 'files';
+const INFERRED_FROM = (FACTS.source || {}).inferredFrom || 'the application code';
+
+/** Shown big on Home: the reader cannot otherwise tell where any of this came from. */
+const UNVERIFIED = INFERRED
+  ? `<div class="noschema" role="note">
+      <h2>${escHtml(PROJECT.name)} has no database.</h2>
+      <p>Nothing on this page was read from one. There is no SQL schema, no migrations and no ORM model definitions in this project, so <b>every table, column and link below was proposed by reading ${md(INFERRED_FROM)}</b>.</p>
+      <p><b>None of it exists yet.</b> Treat this as a design sketch for a database the project could have — not as a description of one it has. The delete rules, indexes and joins describe what <em>would</em> happen if someone built it this way.</p>
+      <p class="what">Pages that describe behaviour — Delete impact, Join path, the maps — are therefore proposals too.</p>
+    </div>`
+  : FROM_FILES
     ? `<p class="unverified"><b>Written from schema files.</b> <span>This guide was built from the project's migrations and model definitions, not read from a running database. The live database may differ.</span></p>`
+    : '';
+
+/** Repeated on every other page, because people arrive by deep link, not through Home. */
+const STRIP = INFERRED
+  ? `<p class="strip"><b>Proposed schema.</b> ${escHtml(PROJECT.name)} has no database; these tables were inferred from ${md(INFERRED_FROM)} and do not exist. <a href="#home">What this means</a></p>`
+  : FROM_FILES
+    ? `<p class="strip soft"><b>Written from schema files</b>, not read from a running database. <a href="#home">What this means</a></p>`
     : '';
 
 function linkGroups(rule) {
@@ -2842,7 +2882,7 @@ function route() {
     : view === 'diagram' ? viewDiagram(a, b)
     : view === 'tools' ? viewTools()
     : viewNotFound();
-  app.innerHTML = html;
+  app.innerHTML = (view === 'home' ? '' : STRIP) + html;
 
   const section = { home: 'home', tour: 'tour', explore: 'explore', table: 'explore', ref: 'ref', diagram: 'tools', tools: 'tools' }[view];
   document.querySelectorAll('[data-nav]').forEach((link) => {
