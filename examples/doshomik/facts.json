@@ -1,0 +1,3878 @@
+{
+  "version": 1,
+  "source": {
+    "kind": "postgres",
+    "name": "doshomik_rt",
+    "server": "PostgreSQL 18.1",
+    "readAt": "2026-11-23T07:59:23.896Z"
+  },
+  "tables": [
+    {
+      "name": "audit_log",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "actor_id",
+          "type": "bigint"
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "entity_type",
+          "type": "text"
+        },
+        {
+          "name": "entity_id",
+          "type": "bigint"
+        },
+        {
+          "name": "changes",
+          "type": "jsonb"
+        },
+        {
+          "name": "ip",
+          "type": "inet"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "audit_log_actor_id_fkey",
+          "columns": [
+            "actor_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "audit_log_actor_id_created_at_idx",
+          "columns": [
+            "actor_id",
+            "created_at DESC"
+          ]
+        },
+        {
+          "name": "audit_log_entity_type_entity_id_idx",
+          "columns": [
+            "entity_type",
+            "entity_id"
+          ]
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "auth_identities",
+      "columns": [
+        {
+          "name": "provider",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "google",
+            "apple"
+          ]
+        },
+        {
+          "name": "provider_subject",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "provider",
+        "provider_subject"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "auth_identities_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "auth_identities_user_id_idx",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "auth_identities_provider_check",
+          "expr": "provider = ANY (ARRAY['google'::text, 'apple'::text])",
+          "column": "provider"
+        }
+      ]
+    },
+    {
+      "name": "auth_tokens",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "purpose",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "verify_email",
+            "reset_password"
+          ]
+        },
+        {
+          "name": "token_hash",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "notNull": true
+        },
+        {
+          "name": "used_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "token_hash"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "auth_tokens_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "auth_tokens_user_id_idx",
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "auth_tokens_purpose_check",
+          "expr": "purpose = ANY (ARRAY['verify_email'::text, 'reset_password'::text])",
+          "column": "purpose"
+        }
+      ]
+    },
+    {
+      "name": "blocks",
+      "columns": [
+        {
+          "name": "blocker_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "blocked_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "blocker_id",
+        "blocked_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "blocks_blocked_id_fkey",
+          "columns": [
+            "blocked_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "blocks_blocker_id_fkey",
+          "columns": [
+            "blocker_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "blocks_blocked_id_idx",
+          "columns": [
+            "blocked_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "blocks_check",
+          "expr": "blocker_id <> blocked_id"
+        }
+      ]
+    },
+    {
+      "name": "comments",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint"
+        },
+        {
+          "name": "post_id",
+          "type": "bigint"
+        },
+        {
+          "name": "paper_id",
+          "type": "bigint"
+        },
+        {
+          "name": "parent_id",
+          "type": "bigint"
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "comments_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "comments_parent_id_fkey",
+          "columns": [
+            "parent_id"
+          ],
+          "table": "comments",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "comments_post_id_fkey",
+          "columns": [
+            "post_id"
+          ],
+          "table": "posts",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "comments_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "comments_paper_id_created_at_idx",
+          "columns": [
+            "paper_id",
+            "created_at"
+          ]
+        },
+        {
+          "name": "comments_parent_id_idx",
+          "columns": [
+            "parent_id"
+          ]
+        },
+        {
+          "name": "comments_post_id_created_at_idx",
+          "columns": [
+            "post_id",
+            "created_at"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "comments_check",
+          "expr": "(post_id IS NULL) <> (paper_id IS NULL)"
+        }
+      ]
+    },
+    {
+      "name": "course_items",
+      "columns": [
+        {
+          "name": "course_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "item_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "position",
+          "type": "smallint",
+          "notNull": true
+        }
+      ],
+      "primaryKey": [
+        "course_id",
+        "position"
+      ],
+      "uniques": [
+        [
+          "course_id",
+          "item_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "course_items_course_id_fkey",
+          "columns": [
+            "course_id"
+          ],
+          "table": "courses",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "course_items_item_id_fkey",
+          "columns": [
+            "item_id"
+          ],
+          "table": "learn_items",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "course_progress",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "course_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "last_position",
+          "type": "smallint",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "course_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "course_progress_course_id_fkey",
+          "columns": [
+            "course_id"
+          ],
+          "table": "courses",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "course_progress_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "courses",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "thumbnail_url",
+          "type": "text"
+        },
+        {
+          "name": "external_url",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'draft'::text",
+          "values": [
+            "draft",
+            "published",
+            "archived"
+          ]
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "courses_created_by_fkey",
+          "columns": [
+            "created_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "courses_updated_by_fkey",
+          "columns": [
+            "updated_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "courses_to_tsvector_idx",
+          "columns": [
+            "to_tsvector('english'::regconfig, (title || ' '::text) || COALESCE(description, ''::text))"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "courses_status_check",
+          "expr": "status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "fields",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "slug",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "position",
+          "type": "smallint",
+          "notNull": true,
+          "default": "0"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "name"
+        ],
+        [
+          "slug"
+        ]
+      ],
+      "foreignKeys": [],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "follows",
+      "columns": [
+        {
+          "name": "follower_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "following_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'accepted'::text",
+          "values": [
+            "accepted",
+            "pending",
+            "inactive"
+          ]
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "follower_id",
+        "following_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "follows_follower_id_fkey",
+          "columns": [
+            "follower_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "follows_following_id_fkey",
+          "columns": [
+            "following_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "follows_following_id_idx",
+          "columns": [
+            "following_id"
+          ]
+        },
+        {
+          "name": "follows_pending_idx",
+          "columns": [
+            "following_id",
+            "updated_at DESC"
+          ],
+          "where": "status = 'pending'::text"
+        }
+      ],
+      "checks": [
+        {
+          "name": "follows_check",
+          "expr": "follower_id <> following_id"
+        },
+        {
+          "name": "follows_status_check",
+          "expr": "status = ANY (ARRAY['accepted'::text, 'pending'::text, 'inactive'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "learn_item_completions",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "learn_item_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "learn_item_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "learn_item_completions_learn_item_id_fkey",
+          "columns": [
+            "learn_item_id"
+          ],
+          "table": "learn_items",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "learn_item_completions_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "learn_items",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "topic_id",
+          "type": "bigint"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "video",
+            "image",
+            "text"
+          ]
+        },
+        {
+          "name": "media_url",
+          "type": "text"
+        },
+        {
+          "name": "body",
+          "type": "text"
+        },
+        {
+          "name": "duration_seconds",
+          "type": "smallint"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'draft'::text",
+          "values": [
+            "draft",
+            "published",
+            "archived"
+          ]
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "media_id",
+          "type": "bigint"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "learn_items_created_by_fkey",
+          "columns": [
+            "created_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "learn_items_media_id_fkey",
+          "columns": [
+            "media_id"
+          ],
+          "table": "media_assets",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "restrict"
+        },
+        {
+          "name": "learn_items_topic_id_fkey",
+          "columns": [
+            "topic_id"
+          ],
+          "table": "topics",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "learn_items_updated_by_fkey",
+          "columns": [
+            "updated_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "learn_items_to_tsvector_idx",
+          "columns": [
+            "to_tsvector('english'::regconfig, (title || ' '::text) || COALESCE(body, ''::text))"
+          ]
+        },
+        {
+          "name": "learn_items_topic_id_idx",
+          "columns": [
+            "topic_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "learn_items_check",
+          "expr": "kind = 'text'::text OR media_url IS NOT NULL OR media_id IS NOT NULL"
+        },
+        {
+          "name": "learn_items_kind_check",
+          "expr": "kind = ANY (ARRAY['video'::text, 'image'::text, 'text'::text])",
+          "column": "kind"
+        },
+        {
+          "name": "learn_items_status_check",
+          "expr": "status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "media_assets",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "owner_id",
+          "type": "bigint"
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "image",
+            "video"
+          ]
+        },
+        {
+          "name": "purpose",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "post",
+            "avatar",
+            "learn",
+            "paper_figure"
+          ]
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'uploading'::text",
+          "values": [
+            "uploading",
+            "processing",
+            "ready",
+            "failed"
+          ]
+        },
+        {
+          "name": "provider",
+          "type": "text",
+          "notNull": true,
+          "default": "'self'::text"
+        },
+        {
+          "name": "provider_asset_id",
+          "type": "text"
+        },
+        {
+          "name": "raw_key",
+          "type": "text"
+        },
+        {
+          "name": "playback_key",
+          "type": "text"
+        },
+        {
+          "name": "thumbnail_key",
+          "type": "text"
+        },
+        {
+          "name": "mime_type",
+          "type": "text"
+        },
+        {
+          "name": "size_bytes",
+          "type": "bigint"
+        },
+        {
+          "name": "width",
+          "type": "integer"
+        },
+        {
+          "name": "height",
+          "type": "integer"
+        },
+        {
+          "name": "duration_ms",
+          "type": "integer"
+        },
+        {
+          "name": "error",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "media_assets_owner_id_fkey",
+          "columns": [
+            "owner_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "media_assets_owner_id_idx",
+          "columns": [
+            "owner_id"
+          ]
+        },
+        {
+          "name": "media_assets_status_idx",
+          "columns": [
+            "status"
+          ],
+          "where": "status = ANY (ARRAY['uploading'::text, 'processing'::text])"
+        }
+      ],
+      "checks": [
+        {
+          "name": "media_assets_kind_check",
+          "expr": "kind = ANY (ARRAY['image'::text, 'video'::text])",
+          "column": "kind"
+        },
+        {
+          "name": "media_assets_purpose_check",
+          "expr": "purpose = ANY (ARRAY['post'::text, 'avatar'::text, 'learn'::text, 'paper_figure'::text])",
+          "column": "purpose"
+        },
+        {
+          "name": "media_assets_size_bytes_check",
+          "expr": "size_bytes > 0"
+        },
+        {
+          "name": "media_assets_status_check",
+          "expr": "status = ANY (ARRAY['uploading'::text, 'processing'::text, 'ready'::text, 'failed'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "notifications",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "actor_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "follow",
+            "follow_request",
+            "like",
+            "comment",
+            "reply",
+            "post_ready"
+          ]
+        },
+        {
+          "name": "post_id",
+          "type": "bigint"
+        },
+        {
+          "name": "comment_id",
+          "type": "bigint"
+        },
+        {
+          "name": "is_read",
+          "type": "boolean",
+          "notNull": true,
+          "default": "false"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "notifications_actor_id_fkey",
+          "columns": [
+            "actor_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "notifications_comment_id_fkey",
+          "columns": [
+            "comment_id"
+          ],
+          "table": "comments",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "notifications_post_id_fkey",
+          "columns": [
+            "post_id"
+          ],
+          "table": "posts",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "notifications_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "notifications_unread_idx",
+          "columns": [
+            "user_id"
+          ],
+          "where": "NOT is_read"
+        },
+        {
+          "name": "notifications_user_id_created_at_idx",
+          "columns": [
+            "user_id",
+            "created_at DESC"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "notifications_type_check",
+          "expr": "type = ANY (ARRAY['follow'::text, 'follow_request'::text, 'like'::text, 'comment'::text, 'reply'::text, 'post_ready'::text])",
+          "column": "type"
+        }
+      ]
+    },
+    {
+      "name": "outbox_events",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "event_type",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "entity_type",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "entity_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        {
+          "name": "attempts",
+          "type": "integer",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "processed_at",
+          "type": "timestamptz"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "name": "outbox_pending_idx",
+          "columns": [
+            "id"
+          ],
+          "where": "processed_at IS NULL"
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "paper_cards",
+      "columns": [
+        {
+          "name": "paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "lang",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "en",
+            "bn"
+          ]
+        },
+        {
+          "name": "question",
+          "type": "text"
+        },
+        {
+          "name": "problem",
+          "type": "text"
+        },
+        {
+          "name": "key_idea",
+          "type": "text"
+        },
+        {
+          "name": "method_steps",
+          "type": "text[]",
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        {
+          "name": "findings",
+          "type": "text"
+        },
+        {
+          "name": "takeaway",
+          "type": "text"
+        },
+        {
+          "name": "limitations",
+          "type": "text"
+        },
+        {
+          "name": "glossary",
+          "type": "jsonb",
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "notNull": true,
+          "default": "'staff'::text",
+          "values": [
+            "staff",
+            "ai"
+          ]
+        },
+        {
+          "name": "updated_by",
+          "type": "bigint"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "paper_id",
+        "lang"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "paper_cards_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "paper_cards_updated_by_fkey",
+          "columns": [
+            "updated_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [],
+      "checks": [
+        {
+          "name": "paper_cards_lang_check",
+          "expr": "lang = ANY (ARRAY['en'::text, 'bn'::text])",
+          "column": "lang"
+        },
+        {
+          "name": "paper_cards_source_check",
+          "expr": "source = ANY (ARRAY['staff'::text, 'ai'::text])",
+          "column": "source"
+        }
+      ]
+    },
+    {
+      "name": "paper_edges",
+      "columns": [
+        {
+          "name": "citing_paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "cited_paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "intent",
+          "type": "text",
+          "values": [
+            "background",
+            "supporting",
+            "contrasting"
+          ]
+        },
+        {
+          "name": "s2_intents",
+          "type": "text[]",
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        {
+          "name": "is_influential",
+          "type": "boolean",
+          "notNull": true,
+          "default": "false"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "semantic_scholar",
+            "openalex",
+            "staff"
+          ]
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "citing_paper_id",
+        "cited_paper_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "paper_edges_cited_paper_id_fkey",
+          "columns": [
+            "cited_paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "paper_edges_citing_paper_id_fkey",
+          "columns": [
+            "citing_paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "paper_edges_cited_idx",
+          "columns": [
+            "cited_paper_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "paper_edges_check",
+          "expr": "citing_paper_id <> cited_paper_id"
+        },
+        {
+          "name": "paper_edges_intent_check",
+          "expr": "intent = ANY (ARRAY['background'::text, 'supporting'::text, 'contrasting'::text])",
+          "column": "intent"
+        },
+        {
+          "name": "paper_edges_source_check",
+          "expr": "source = ANY (ARRAY['semantic_scholar'::text, 'openalex'::text, 'staff'::text])",
+          "column": "source"
+        }
+      ]
+    },
+    {
+      "name": "paper_prerequisites",
+      "columns": [
+        {
+          "name": "paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "topic_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "position",
+          "type": "smallint",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "label",
+          "type": "text"
+        },
+        {
+          "name": "why",
+          "type": "text"
+        },
+        {
+          "name": "learn_item_id",
+          "type": "bigint"
+        },
+        {
+          "name": "quiz_id",
+          "type": "bigint"
+        },
+        {
+          "name": "reel_post_id",
+          "type": "bigint"
+        },
+        {
+          "name": "suggested_by",
+          "type": "text",
+          "notNull": true,
+          "default": "'staff'::text",
+          "values": [
+            "staff",
+            "ai"
+          ]
+        }
+      ],
+      "primaryKey": [
+        "paper_id",
+        "topic_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "paper_prerequisites_learn_item_id_fkey",
+          "columns": [
+            "learn_item_id"
+          ],
+          "table": "learn_items",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "paper_prerequisites_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "paper_prerequisites_quiz_id_fkey",
+          "columns": [
+            "quiz_id"
+          ],
+          "table": "quizzes",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "paper_prerequisites_reel_post_id_fkey",
+          "columns": [
+            "reel_post_id"
+          ],
+          "table": "posts",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "paper_prerequisites_topic_id_fkey",
+          "columns": [
+            "topic_id"
+          ],
+          "table": "topics",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": [
+        {
+          "name": "paper_prerequisites_one_link",
+          "expr": "num_nonnulls(learn_item_id, quiz_id, reel_post_id) <= 1"
+        },
+        {
+          "name": "paper_prerequisites_suggested_by_check",
+          "expr": "suggested_by = ANY (ARRAY['staff'::text, 'ai'::text])",
+          "column": "suggested_by"
+        }
+      ]
+    },
+    {
+      "name": "paper_saves",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "paper_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "paper_saves_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "paper_saves_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "paper_saves_user_idx",
+          "columns": [
+            "user_id",
+            "created_at"
+          ]
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "papers",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "field_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "authors",
+          "type": "text"
+        },
+        {
+          "name": "year",
+          "type": "smallint"
+        },
+        {
+          "name": "paper_url",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "research_questions",
+          "type": "text[]",
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        {
+          "name": "main_idea",
+          "type": "text"
+        },
+        {
+          "name": "data_source",
+          "type": "text"
+        },
+        {
+          "name": "method_steps",
+          "type": "text[]",
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        {
+          "name": "results",
+          "type": "text"
+        },
+        {
+          "name": "figures",
+          "type": "jsonb",
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        {
+          "name": "limitations",
+          "type": "text"
+        },
+        {
+          "name": "evaluation",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'draft'::text",
+          "values": [
+            "draft",
+            "published",
+            "archived"
+          ]
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "abstract",
+          "type": "text"
+        },
+        {
+          "name": "venue",
+          "type": "text"
+        },
+        {
+          "name": "published_on",
+          "type": "date"
+        },
+        {
+          "name": "doi",
+          "type": "text"
+        },
+        {
+          "name": "arxiv_id",
+          "type": "text"
+        },
+        {
+          "name": "openalex_id",
+          "type": "text"
+        },
+        {
+          "name": "s2_id",
+          "type": "text"
+        },
+        {
+          "name": "pdf_url",
+          "type": "text"
+        },
+        {
+          "name": "code_url",
+          "type": "text"
+        },
+        {
+          "name": "tldr",
+          "type": "text"
+        },
+        {
+          "name": "citation_count",
+          "type": "integer"
+        },
+        {
+          "name": "hf_upvotes",
+          "type": "integer"
+        },
+        {
+          "name": "hf_trending_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "trend_rank",
+          "type": "integer"
+        },
+        {
+          "name": "openalex_topics",
+          "type": "jsonb",
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        {
+          "name": "synced_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "sync_error",
+          "type": "text"
+        },
+        {
+          "name": "search_vector",
+          "type": "tsvector"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "arxiv_id"
+        ],
+        [
+          "doi"
+        ],
+        [
+          "openalex_id"
+        ],
+        [
+          "public_id"
+        ],
+        [
+          "s2_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "papers_created_by_fkey",
+          "columns": [
+            "created_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "papers_field_id_fkey",
+          "columns": [
+            "field_id"
+          ],
+          "table": "fields",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "restrict"
+        },
+        {
+          "name": "papers_updated_by_fkey",
+          "columns": [
+            "updated_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "papers_field_id_idx",
+          "columns": [
+            "field_id"
+          ]
+        },
+        {
+          "name": "papers_search_idx",
+          "columns": [
+            "search_vector"
+          ]
+        },
+        {
+          "name": "papers_sync_idx",
+          "columns": [
+            "synced_at",
+            "id"
+          ],
+          "where": "doi IS NOT NULL OR arxiv_id IS NOT NULL"
+        },
+        {
+          "name": "papers_trend_idx",
+          "columns": [
+            "COALESCE(trend_rank, 2147483647)",
+            "id"
+          ],
+          "where": "status = 'published'::text"
+        }
+      ],
+      "checks": [
+        {
+          "name": "papers_citation_count_check",
+          "expr": "citation_count >= 0"
+        },
+        {
+          "name": "papers_hf_upvotes_check",
+          "expr": "hf_upvotes >= 0"
+        },
+        {
+          "name": "papers_status_check",
+          "expr": "status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])",
+          "column": "status"
+        },
+        {
+          "name": "papers_trend_rank_check",
+          "expr": "trend_rank > 0"
+        }
+      ]
+    },
+    {
+      "name": "post_likes",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "post_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "notNull": true,
+          "default": "true"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "post_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "post_likes_post_id_fkey",
+          "columns": [
+            "post_id"
+          ],
+          "table": "posts",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "post_likes_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "post_likes_post_id_idx",
+          "columns": [
+            "post_id"
+          ]
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "posts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "text",
+            "image",
+            "reel"
+          ]
+        },
+        {
+          "name": "caption",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "media_id",
+          "type": "bigint"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'published'::text",
+          "values": [
+            "processing",
+            "published",
+            "removed"
+          ]
+        },
+        {
+          "name": "like_count",
+          "type": "integer",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "comment_count",
+          "type": "integer",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "topic_id",
+          "type": "bigint"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "posts_media_id_fkey",
+          "columns": [
+            "media_id"
+          ],
+          "table": "media_assets",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "restrict"
+        },
+        {
+          "name": "posts_topic_id_fkey",
+          "columns": [
+            "topic_id"
+          ],
+          "table": "topics",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "posts_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "posts_media_id_idx",
+          "columns": [
+            "media_id"
+          ]
+        },
+        {
+          "name": "posts_reels_idx",
+          "columns": [
+            "created_at DESC",
+            "id DESC"
+          ],
+          "where": "type = 'reel'::text AND status = 'published'::text AND deleted_at IS NULL"
+        },
+        {
+          "name": "posts_to_tsvector_idx",
+          "columns": [
+            "to_tsvector('english'::regconfig, COALESCE(caption, ''::text))"
+          ]
+        },
+        {
+          "name": "posts_topic_idx",
+          "columns": [
+            "topic_id"
+          ],
+          "where": "topic_id IS NOT NULL"
+        },
+        {
+          "name": "posts_user_feed_idx",
+          "columns": [
+            "user_id",
+            "created_at DESC",
+            "id DESC"
+          ],
+          "where": "deleted_at IS NULL AND status = 'published'::text"
+        },
+        {
+          "name": "posts_user_id_created_at_idx",
+          "columns": [
+            "user_id",
+            "created_at DESC"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "posts_check",
+          "expr": "type <> 'text'::text OR caption IS NOT NULL"
+        },
+        {
+          "name": "posts_media_check",
+          "expr": "type = 'text'::text OR media_id IS NOT NULL"
+        },
+        {
+          "name": "posts_status_check",
+          "expr": "status = ANY (ARRAY['processing'::text, 'published'::text, 'removed'::text])",
+          "column": "status"
+        },
+        {
+          "name": "posts_type_check",
+          "expr": "type = ANY (ARRAY['text'::text, 'image'::text, 'reel'::text])",
+          "column": "type"
+        }
+      ]
+    },
+    {
+      "name": "question_attempts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "question_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "answer",
+          "type": "text"
+        },
+        {
+          "name": "is_correct",
+          "type": "boolean",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "question_attempts_question_id_fkey",
+          "columns": [
+            "question_id"
+          ],
+          "table": "questions",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "question_attempts_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "question_attempts_user_id_created_at_idx",
+          "columns": [
+            "user_id",
+            "created_at DESC"
+          ]
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "questions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "topic_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "mcq",
+            "short"
+          ]
+        },
+        {
+          "name": "prompt",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "options",
+          "type": "text[]"
+        },
+        {
+          "name": "answer",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "explanation",
+          "type": "text"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'draft'::text",
+          "values": [
+            "draft",
+            "published",
+            "archived"
+          ]
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_by",
+          "type": "bigint"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "questions_created_by_fkey",
+          "columns": [
+            "created_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "questions_topic_id_fkey",
+          "columns": [
+            "topic_id"
+          ],
+          "table": "topics",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "questions_updated_by_fkey",
+          "columns": [
+            "updated_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "questions_topic_id_idx",
+          "columns": [
+            "topic_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "questions_check",
+          "expr": "kind = 'short'::text OR options IS NOT NULL AND cardinality(options) >= 2"
+        },
+        {
+          "name": "questions_kind_check",
+          "expr": "kind = ANY (ARRAY['mcq'::text, 'short'::text])",
+          "column": "kind"
+        },
+        {
+          "name": "questions_status_check",
+          "expr": "status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "quiz_questions",
+      "columns": [
+        {
+          "name": "quiz_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "question_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "position",
+          "type": "smallint",
+          "notNull": true
+        }
+      ],
+      "primaryKey": [
+        "quiz_id",
+        "position"
+      ],
+      "uniques": [
+        [
+          "quiz_id",
+          "question_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "quiz_questions_question_id_fkey",
+          "columns": [
+            "question_id"
+          ],
+          "table": "questions",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "quiz_questions_quiz_id_fkey",
+          "columns": [
+            "quiz_id"
+          ],
+          "table": "quizzes",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "quizzes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "topic_id",
+          "type": "bigint"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'draft'::text",
+          "values": [
+            "draft",
+            "published",
+            "archived"
+          ]
+        },
+        {
+          "name": "created_by",
+          "type": "bigint"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "quizzes_created_by_fkey",
+          "columns": [
+            "created_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "quizzes_topic_id_fkey",
+          "columns": [
+            "topic_id"
+          ],
+          "table": "topics",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [],
+      "checks": [
+        {
+          "name": "quizzes_status_check",
+          "expr": "status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "reading_passes",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "step",
+          "type": "smallint",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "note",
+          "type": "text"
+        },
+        {
+          "name": "explored_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "studied_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "reproduced_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "paper_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "reading_passes_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "reading_passes_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "reading_passes_read_idx",
+          "columns": [
+            "user_id",
+            "updated_at DESC"
+          ],
+          "where": "step >= 1"
+        }
+      ],
+      "checks": [
+        {
+          "name": "reading_passes_check",
+          "expr": "(step >= 1) = (explored_at IS NOT NULL)"
+        },
+        {
+          "name": "reading_passes_check1",
+          "expr": "(step >= 2) = (studied_at IS NOT NULL)"
+        },
+        {
+          "name": "reading_passes_check2",
+          "expr": "(step >= 3) = (reproduced_at IS NOT NULL)"
+        },
+        {
+          "name": "reading_passes_note_check",
+          "expr": "char_length(note) <= 400"
+        },
+        {
+          "name": "reading_passes_step_check",
+          "expr": "step >= 0 AND step <= 3"
+        }
+      ]
+    },
+    {
+      "name": "reports",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "reporter_id",
+          "type": "bigint"
+        },
+        {
+          "name": "target_type",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "user",
+            "post",
+            "comment",
+            "trail"
+          ]
+        },
+        {
+          "name": "target_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "spam",
+            "harassment",
+            "nudity",
+            "violence",
+            "misinformation",
+            "other"
+          ]
+        },
+        {
+          "name": "details",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'open'::text",
+          "values": [
+            "open",
+            "actioned",
+            "dismissed"
+          ]
+        },
+        {
+          "name": "reviewed_by",
+          "type": "bigint"
+        },
+        {
+          "name": "reviewed_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "reports_reporter_id_fkey",
+          "columns": [
+            "reporter_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        },
+        {
+          "name": "reports_reviewed_by_fkey",
+          "columns": [
+            "reviewed_by"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "reports_status_created_at_idx",
+          "columns": [
+            "status",
+            "created_at"
+          ]
+        },
+        {
+          "name": "reports_target_type_target_id_idx",
+          "columns": [
+            "target_type",
+            "target_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "reports_reason_check",
+          "expr": "reason = ANY (ARRAY['spam'::text, 'harassment'::text, 'nudity'::text, 'violence'::text, 'misinformation'::text, 'other'::text])",
+          "column": "reason"
+        },
+        {
+          "name": "reports_status_check",
+          "expr": "status = ANY (ARRAY['open'::text, 'actioned'::text, 'dismissed'::text])",
+          "column": "status"
+        },
+        {
+          "name": "reports_target_type_check",
+          "expr": "target_type = ANY (ARRAY['user'::text, 'post'::text, 'comment'::text, 'trail'::text])",
+          "column": "target_type"
+        }
+      ]
+    },
+    {
+      "name": "research_outputs",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "reading_map",
+            "landscape_map",
+            "roadmap",
+            "comparison",
+            "claim_check"
+          ]
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "params",
+          "type": "jsonb",
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        {
+          "name": "result",
+          "type": "jsonb",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "research_outputs_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "research_outputs_user_idx",
+          "columns": [
+            "user_id",
+            "created_at DESC"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "research_outputs_kind_check",
+          "expr": "kind = ANY (ARRAY['reading_map'::text, 'landscape_map'::text, 'roadmap'::text, 'comparison'::text, 'claim_check'::text])",
+          "column": "kind"
+        }
+      ]
+    },
+    {
+      "name": "roadmap_steps",
+      "columns": [
+        {
+          "name": "field_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "position",
+          "type": "smallint",
+          "notNull": true
+        },
+        {
+          "name": "paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "note",
+          "type": "text"
+        }
+      ],
+      "primaryKey": [
+        "field_id",
+        "position"
+      ],
+      "uniques": [
+        [
+          "field_id",
+          "paper_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "roadmap_steps_field_id_fkey",
+          "columns": [
+            "field_id"
+          ],
+          "table": "fields",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "roadmap_steps_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "saved_posts",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "post_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "post_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "saved_posts_post_id_fkey",
+          "columns": [
+            "post_id"
+          ],
+          "table": "posts",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "saved_posts_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "saved_posts_user_id_created_at_idx",
+          "columns": [
+            "user_id",
+            "created_at DESC"
+          ]
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "sessions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "refresh_token_hash",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "platform",
+          "type": "text",
+          "notNull": true,
+          "values": [
+            "android",
+            "ios",
+            "web"
+          ]
+        },
+        {
+          "name": "app_version",
+          "type": "text"
+        },
+        {
+          "name": "push_token",
+          "type": "text"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "last_used_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "notNull": true
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ],
+        [
+          "refresh_token_hash"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "sessions_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "sessions_user_id_idx",
+          "columns": [
+            "user_id"
+          ],
+          "where": "revoked_at IS NULL"
+        }
+      ],
+      "checks": [
+        {
+          "name": "sessions_platform_check",
+          "expr": "platform = ANY (ARRAY['android'::text, 'ios'::text, 'web'::text])",
+          "column": "platform"
+        }
+      ]
+    },
+    {
+      "name": "topics",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "summary",
+          "type": "text"
+        },
+        {
+          "name": "slug",
+          "type": "text",
+          "notNull": true
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "name"
+        ],
+        [
+          "slug"
+        ]
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "name": "topics_name_idx",
+          "columns": [
+            "name"
+          ]
+        }
+      ],
+      "checks": []
+    },
+    {
+      "name": "trail_items",
+      "columns": [
+        {
+          "name": "trail_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "position",
+          "type": "smallint",
+          "notNull": true
+        },
+        {
+          "name": "paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "note",
+          "type": "text"
+        }
+      ],
+      "primaryKey": [
+        "trail_id",
+        "position"
+      ],
+      "uniques": [
+        [
+          "trail_id",
+          "paper_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "trail_items_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "trail_items_trail_id_fkey",
+          "columns": [
+            "trail_id"
+          ],
+          "table": "trails",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "trail_items_paper_idx",
+          "columns": [
+            "paper_id"
+          ]
+        }
+      ],
+      "checks": [
+        {
+          "name": "trail_items_note_check",
+          "expr": "char_length(note) <= 280"
+        }
+      ]
+    },
+    {
+      "name": "trails",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "creator_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "description",
+          "type": "text"
+        },
+        {
+          "name": "lang",
+          "type": "text",
+          "notNull": true,
+          "default": "'en'::text",
+          "values": [
+            "en",
+            "bn"
+          ]
+        },
+        {
+          "name": "field_id",
+          "type": "bigint"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'draft'::text",
+          "values": [
+            "draft",
+            "published",
+            "removed"
+          ]
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "public_id"
+        ]
+      ],
+      "foreignKeys": [
+        {
+          "name": "trails_creator_id_fkey",
+          "columns": [
+            "creator_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "trails_field_id_fkey",
+          "columns": [
+            "field_id"
+          ],
+          "table": "fields",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "setnull"
+        }
+      ],
+      "indexes": [
+        {
+          "name": "trails_creator_idx",
+          "columns": [
+            "creator_id",
+            "created_at DESC"
+          ]
+        },
+        {
+          "name": "trails_published_idx",
+          "columns": [
+            "created_at DESC",
+            "id DESC"
+          ],
+          "where": "status = 'published'::text"
+        }
+      ],
+      "checks": [
+        {
+          "name": "trails_lang_check",
+          "expr": "lang = ANY (ARRAY['en'::text, 'bn'::text])",
+          "column": "lang"
+        },
+        {
+          "name": "trails_status_check",
+          "expr": "status = ANY (ARRAY['draft'::text, 'published'::text, 'removed'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "user_fields",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "field_id",
+          "type": "bigint",
+          "notNull": true
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "field_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "user_fields_field_id_fkey",
+          "columns": [
+            "field_id"
+          ],
+          "table": "fields",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "user_fields_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "user_known_topics",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "topic_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "topic_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "user_known_topics_topic_id_fkey",
+          "columns": [
+            "topic_id"
+          ],
+          "table": "topics",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "user_known_topics_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": []
+    },
+    {
+      "name": "user_papers",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "paper_id",
+          "type": "bigint",
+          "notNull": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'saved'::text",
+          "values": [
+            "saved",
+            "reading",
+            "completed"
+          ]
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        }
+      ],
+      "primaryKey": [
+        "user_id",
+        "paper_id"
+      ],
+      "uniques": [],
+      "foreignKeys": [
+        {
+          "name": "user_papers_paper_id_fkey",
+          "columns": [
+            "paper_id"
+          ],
+          "table": "papers",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        },
+        {
+          "name": "user_papers_user_id_fkey",
+          "columns": [
+            "user_id"
+          ],
+          "table": "users",
+          "refColumns": [
+            "id"
+          ],
+          "onDelete": "cascade"
+        }
+      ],
+      "indexes": [],
+      "checks": [
+        {
+          "name": "user_papers_status_check",
+          "expr": "status = ANY (ARRAY['saved'::text, 'reading'::text, 'completed'::text])",
+          "column": "status"
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "default": "identity"
+        },
+        {
+          "name": "username",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "notNull": true
+        },
+        {
+          "name": "password_hash",
+          "type": "text"
+        },
+        {
+          "name": "display_name",
+          "type": "text"
+        },
+        {
+          "name": "bio",
+          "type": "text"
+        },
+        {
+          "name": "avatar_url",
+          "type": "text"
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "notNull": true,
+          "default": "'user'::text",
+          "values": [
+            "user",
+            "moderator",
+            "admin"
+          ]
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "public_id",
+          "type": "uuid",
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "notNull": true,
+          "default": "'active'::text",
+          "values": [
+            "active",
+            "suspended",
+            "deleted"
+          ]
+        },
+        {
+          "name": "is_private",
+          "type": "boolean",
+          "notNull": true,
+          "default": "false"
+        },
+        {
+          "name": "email_verified_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "notNull": true,
+          "default": "now()"
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "totp_secret",
+          "type": "text"
+        },
+        {
+          "name": "totp_enabled_at",
+          "type": "timestamptz"
+        },
+        {
+          "name": "follower_count",
+          "type": "integer",
+          "notNull": true,
+          "default": "0"
+        },
+        {
+          "name": "following_count",
+          "type": "integer",
+          "notNull": true,
+          "default": "0"
+        }
+      ],
+      "primaryKey": [
+        "id"
+      ],
+      "uniques": [
+        [
+          "email"
+        ],
+        [
+          "public_id"
+        ],
+        [
+          "username"
+        ]
+      ],
+      "foreignKeys": [],
+      "indexes": [
+        {
+          "name": "users_email_lower_key",
+          "columns": [
+            "lower(email)"
+          ],
+          "unique": true
+        },
+        {
+          "name": "users_suggest_idx",
+          "columns": [
+            "follower_count DESC",
+            "id DESC"
+          ],
+          "where": "status = 'active'::text"
+        },
+        {
+          "name": "users_username_idx",
+          "columns": [
+            "username"
+          ]
+        },
+        {
+          "name": "users_username_lower_key",
+          "columns": [
+            "lower(username)"
+          ],
+          "unique": true
+        }
+      ],
+      "checks": [
+        {
+          "name": "users_role_check",
+          "expr": "role = ANY (ARRAY['user'::text, 'moderator'::text, 'admin'::text])",
+          "column": "role"
+        },
+        {
+          "name": "users_status_check",
+          "expr": "status = ANY (ARRAY['active'::text, 'suspended'::text, 'deleted'::text])",
+          "column": "status"
+        }
+      ]
+    }
+  ]
+}

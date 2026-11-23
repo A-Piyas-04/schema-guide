@@ -1,0 +1,8 @@
+{
+  "name": "schema-guide",
+  "version": "1.0.0",
+  "description": "Turns your database schema into a step-by-step, offline HTML guide: a tour, every table and link, a pan-and-zoom map, delete impact and join paths. Two commands: build and update.",
+  "author": { "name": "A-Piyas-04" },
+  "license": "MIT",
+  "keywords": ["database", "schema", "documentation", "erd", "postgres", "mysql", "sqlite"]
+}
