@@ -31,6 +31,8 @@ Before reading anything, work out which of three cases you are in. Search the re
 | No reachable database, but real schema sources that declare tables and columns | **B — write it from those files** | `files` |
 | No schema anywhere: the project persists to key-value storage, documents, bundled JSON, or nothing at all | **C — ask first** | `inferred` |
 
+The B/C line is the one that matters, and it is easy to get wrong. A schema source **declares tables and columns to a database**: `CREATE TABLE`, a migration, `schema.prisma`, `@Entity`, a Drizzle/TypeORM/Sequelize table definition. TypeScript interfaces, API response types, Zod schemas, AsyncStorage keys, Redis keys and bundled JSON are **not** schema sources, however entity-shaped they look — an `interface Story { id: string; ayahId: string }` is case C, not case B. If nothing in the project would create a table when it ran, you are in case C.
+
 **Case C is not a failure, and it is not business as usual.** Stop and tell the user plainly:
 
 > This project has no database. I found no SQL schema, no migrations and no ORM model definitions — \<name what you did find, e.g. "ten AsyncStorage keys in `src/services/storage.ts` and three bundled JSON files"\>.
@@ -71,11 +73,11 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/guide-format.md` first. Then read the code
 - `tour`: 8–15 steps, one idea each.
 - `reference`: the built-ins, plus topics the repo really documents (conventions, status flows, retention, migrations, known gaps).
 
-Ground every sentence in something you read. When unsure, leave it out rather than guess.
+Ground every sentence in something you read. When unsure, leave it out rather than guess — a missing note costs a reader nothing, a confident wrong one costs them an afternoon.
 
 ## 5. Build and check
 
-Run `CLI build`, then `CLI check --browser`. Fix every error (usually a misspelt name in guide.json) and rerun until it passes; fix warnings that point at missing text. Without Chrome or Edge, `CLI check` alone is enough.
+Run `CLI build`, then `CLI check --browser`, passing the same `--out` to both if you changed it. Fix every error (usually a misspelt name in guide.json) and rerun until it passes; fix warnings that point at missing text. Without Chrome or Edge, `CLI check` alone is enough. On a case C build, `check` always warns that the schema does not exist — that warning is correct, and stays.
 
 ## 6. Report
 

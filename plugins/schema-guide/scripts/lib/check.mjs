@@ -45,7 +45,11 @@ export function validate(facts, guide, errors, warnings) {
   const kind = (facts.source || {}).kind;
   if (kind === 'inferred') {
     warnings.push('this schema is inferred from application code and does not exist: the page is labelled as a proposal throughout.');
-    if (!(facts.source || {}).inferredFrom) warnings.push('set source.inferredFrom to name what the schema was inferred from (it is shown on the page).');
+    const from = (facts.source || {}).inferredFrom;
+    if (!from) warnings.push('set source.inferredFrom to name what the schema was inferred from (it is shown on the page).');
+    else if (/\.\s|\.$/.test(from.trim())) {
+      warnings.push('source.inferredFrom reads inside a sentence on the page: make it a noun phrase with no full stop.');
+    }
   }
 
   // Tables are keyed by name everywhere, so a repeat would silently shadow the first one.

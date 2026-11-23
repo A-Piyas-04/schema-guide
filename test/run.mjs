@@ -286,6 +286,28 @@ console.log('Inferred schema (no database in the project)');
   // Readers arrive by deep link, so every other page has to say it too.
   ok(/class="strip"/.test(html) && /Proposed schema\./.test(html), 'the per-page strip is in the page');
 
+  // The title is the one place a proposal could still pass for documentation: a tab, a
+  // bookmark, a cropped screenshot. The engine rewrites it on every route, so the marker
+  // has to survive that, not just the first paint.
+  ok(/const BRAND = \(FACTS\.source \|\| \{\}\)\.kind === 'inferred'/.test(html), 'the runtime title keeps the "no database" marker');
+
+  // Hand-written facts leave optional arrays out; that used to crash build after writing the page.
+  const bare2 = fresh('inferred-sparse');
+  mkdirSync(join(bare2, '.schema-guide'));
+  writeFileSync(join(bare2, '.schema-guide/facts.json'), JSON.stringify({
+    version: 1,
+    source: { kind: 'inferred', name: 'sparse', dialect: 'sqlite', inferredFrom: 'the types in `src/`' },
+    tables: [{ name: 'notes', columns: [{ name: 'id', type: 'text', notNull: true }] }],
+  }));
+  const sparse = cli(bare2, 'build');
+  ok(sparse.code === 0, 'build accepts a table with no primaryKey, foreignKeys, indexes or checks');
+
+  const empty = fresh('no-columns');
+  mkdirSync(join(empty, '.schema-guide'));
+  writeFileSync(join(empty, '.schema-guide/facts.json'), JSON.stringify({ version: 1, source: { kind: 'files' }, tables: [{ name: 'notes' }] }));
+  const ec = cli(empty, 'build');
+  ok(ec.code === 1 && /no columns/.test(ec.out) && !existsSync(join(empty, 'docs/schema-guide.html')), 'but a table with no columns is refused before anything is written');
+
   // Without inferredFrom, check says so rather than rendering a vague notice.
   const bare = fresh('inferred-bare');
   mkdirSync(join(bare, '.schema-guide'));

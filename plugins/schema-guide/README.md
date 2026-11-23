@@ -47,6 +47,8 @@ The result is three files in your project:
 
 Commit all three. Add `.schema-guide/facts.prev.json` to `.gitignore`.
 
+**What is read and what is written.** The schema is introspected, and `check` refuses to build a page whose prose names a table, column or index that doesn't exist. The explanations around it are Claude's reading of your code and can be wrong or go stale. Every page's footer says this; corrections belong in `guide.json`, which `update` preserves word for word.
+
 Both commands are user-invoked only, so nothing about this plugin enters Claude's context until you run one.
 
 ## Requirements

@@ -30,3 +30,6 @@ Three real codebases were used to find out where the plugin lies; [`docs/evaluat
 - Maps and tabs no longer describe links, indexes or rankings that aren't there.
 - An area whose id collides with a fixed map view (`all`, `layers`, `ownership`, `hubs`, `values`, `table`) no longer breaks its own map page.
 - On the Ownership map, a table whose every owned table is already shown under an earlier owner used to read "owns 0 tables" above an empty list. It now names them and says where they are.
+- Every page's footer separates what was read from what was written: the structure is introspected and `check` refuses prose that names anything absent from it, but the explanations are Claude's reading of the code and can be wrong. The footer says so and names the file to correct.
+- A hand-written `facts.json` that leaves out `primaryKey`, `foreignKeys`, `indexes` or `checks` now builds, instead of writing the page and then failing with "Cannot read properties of undefined". A table with no columns is refused before anything is written.
+- The "(no database)" marker survives navigation: the engine rewrites the tab title on every route, and used to drop it after the first paint.

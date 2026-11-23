@@ -114,6 +114,17 @@ function printChanges(lines) {
 function loadInputs() {
   if (!existsSync(paths.facts)) fail(`no facts at ${paths.facts}. Run "read" first.`);
   const facts = readJson(paths.facts);
+  if (!Array.isArray(facts.tables)) fail(`${paths.facts} has no "tables" array.`);
+  for (const t of facts.tables) {
+    if (!t || typeof t.name !== 'string') fail(`${paths.facts} has a table without a name.`);
+    if (!Array.isArray(t.columns) || !t.columns.length) fail(`table "${t.name}" has no columns.`);
+    // Every other list is optional when the file is written by hand.
+    t.primaryKey = t.primaryKey || [];
+    t.uniques = t.uniques || [];
+    t.foreignKeys = t.foreignKeys || [];
+    t.indexes = t.indexes || [];
+    t.checks = t.checks || [];
+  }
   const guide = existsSync(paths.guide) ? readJson(paths.guide) : {};
   const name = (guide.project && guide.project.name) || titleCase((facts.source && facts.source.name) || 'This project');
   guide.project = { ...(guide.project || {}), name };

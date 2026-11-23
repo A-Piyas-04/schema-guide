@@ -665,6 +665,7 @@ details.own .tree{margin-top:2px}
 .val-row > a{font-size:.88rem;overflow-wrap:anywhere;text-decoration:none;color:var(--ink-2)}
 .val-row > a b{color:var(--ink);font-weight:600}
 .val-hint{margin:6px 0 0;font-size:.8rem;color:var(--muted)}
+.caveat{display:block;margin-top:7px;opacity:.85}
 @media (max-width:560px){
   .val-row{grid-template-columns:1fr}
   .hub{grid-template-columns:1fr auto}
@@ -734,7 +735,9 @@ const FACTS = DATA.facts || { tables: [] };
 const GUIDE = DATA.guide || {};
 const PROJECT = { name: 'This project', code: ['sql'], ...(GUIDE.project || {}) };
 const DIALECT = { mysql: 'mysql', mariadb: 'mysql', sqlite: 'sqlite' }[(FACTS.source || {}).dialect || (FACTS.source || {}).kind] || 'postgres';
-const BRAND = `${PROJECT.name} schema guide`;
+const BRAND = (FACTS.source || {}).kind === 'inferred'
+  ? `${PROJECT.name} proposed schema (no database)`
+  : `${PROJECT.name} schema guide`;
 const HEADLINE = PROJECT.headline
   ? md(PROJECT.headline)
   : (FACTS.source || {}).kind === 'inferred'
@@ -1062,14 +1065,16 @@ function buildRefPages() {
   const src = FACTS.source || {};
   const when = src.readAt ? new Date(src.readAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const kind = { postgres: 'PostgreSQL', mysql: 'MySQL', sqlite: 'SQLite', files: 'schema files', inferred: 'application code' }[src.kind] || 'database';
+  const written =
+    `<span class="caveat">The wording on these pages was written by Claude from this project's code, and can be wrong or out of date. Check anything you are about to depend on; corrections go in <code>.schema-guide/guide.json</code>.</span>`;
   foot.innerHTML =
-    src.kind === 'inferred'
+    (src.kind === 'inferred'
       ? `Proposed schema. This project has no database: the tables, columns and links above were inferred from ${md(src.inferredFrom || 'the application code')}${when ? ` on ${when}` : ''} and do not exist.${PROJECT.footer ? ` ${md(PROJECT.footer)}` : ''}`
       : PROJECT.footer
         ? md(PROJECT.footer)
         : src.kind === 'files'
           ? `${PROJECT.source ? `Source of truth: ${md(PROJECT.source)}. ` : ''}Tables, columns and links were written by hand from the project's schema files${when ? ` on ${when}` : ''}, not read from a running database.`
-          : `${PROJECT.source ? `Source of truth: ${md(PROJECT.source)}. ` : ''}Tables, columns and links were read from the ${kind} database${when ? ` on ${when}` : ''}.`;
+          : `${PROJECT.source ? `Source of truth: ${md(PROJECT.source)}. ` : ''}Tables, columns and links were read from the ${kind} database${when ? ` on ${when}` : ''}.`) + written;
 })();
 
 const app = document.getElementById('app');

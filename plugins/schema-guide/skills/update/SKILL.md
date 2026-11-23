@@ -51,4 +51,4 @@ Run `CLI build`, then `CLI check --browser`. Fix every error and rerun until it 
 
 ## 5. Report
 
-Give the user the change list, which guide entries you added, changed or removed, and any warnings left.
+Give the user the change list, which guide entries you added, changed or removed, and any warnings left. Point out anything you were unsure about, so they can check it rather than discover it later.

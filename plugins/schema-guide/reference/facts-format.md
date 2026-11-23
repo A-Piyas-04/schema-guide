@@ -55,7 +55,7 @@ Rules:
   | `inferred` | **No schema exists.** The shape was proposed by reading application code | A large notice on Home, a strip on every other page, and "(no database)" in the page title |
 
   With `files` or `inferred`, set `dialect` (`postgres`, `mysql` or `sqlite`) for SQL quoting.
-- `source.inferredFrom`: required with `kind: "inferred"`. Mini-markdown naming exactly what was read, shown on the page — e.g. ``"the TypeScript types in `src/types/` and the AsyncStorage keys in `src/services/storage.ts`"``.
+- `source.inferredFrom`: required with `kind: "inferred"`. Mini-markdown naming exactly what was read, shown on the page — e.g. ``"the TypeScript types in `src/types/` and the AsyncStorage keys in `src/services/storage.ts`"``. Write it as a **noun phrase**, with no full stop and no second sentence: the page reads it inside a sentence ("…inferred from X and do not exist").
 - Types as written in the schema, short forms (`timestamptz`, `varchar(80)`, `text[]`).
 - `notNull`: true for NOT NULL and primary-key columns; leave it out otherwise.
 - `onDelete`: `cascade` | `setnull` | `setdefault` | `restrict`. No action, missing, and `RESTRICT` are all `restrict`.
