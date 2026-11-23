@@ -81,52 +81,64 @@ CREATE UNIQUE INDEX accounts_email_lower ON accounts(lower(email));
 CREATE INDEX live_accounts ON accounts(id) WHERE deleted_at IS NULL;
 CREATE TABLE schema_migrations (version TEXT PRIMARY KEY);
 `;
-console.log('SQLite fixture');
-let sqliteOk = true;
-try {
-  const { DatabaseSync } = await import('node:sqlite');
-  const dir = fresh('sqlite');
-  const file = join(dir, 'app.db');
-  const db = new DatabaseSync(file);
-  db.exec(FIXTURE);
-  db.close();
-  const r = cli(dir, 'read', 'app.db');
-  ok(r.code === 0 && /Read 11 tables and 10 links/.test(r.out), `read: 11 tables, 10 links (migrations table skipped) — ${r.out.trim().split('\n').pop()}`);
-  const facts = JSON.parse(readFileSync(join(dir, '.schema-guide/facts.json'), 'utf8'));
-  const t = (n) => facts.tables.find((x) => x.name === n);
-  ok(JSON.stringify(t('accounts').columns.find((c) => c.name === 'status').values) === '["active","suspended"]', 'value list from CHECK … IN');
-  ok(JSON.stringify(t('coupons').columns.find((c) => c.name === 'kind').values) === '["percent","fixed"]', 'value list from CHECK … OR …');
-  ok(t('refunds').foreignKeys[0].columns.length === 2, 'composite link read');
-  ok(t('accounts').indexes.some((i) => i.where) && t('accounts').indexes.some((i) => i.unique), 'partial and unique expression indexes read');
-  ok(cli(dir, 'build').code === 0, 'facts-only build');
-  const c = cli(dir, 'check', ...(BROWSER ? ['--browser'] : []));
-  ok(c.code === 0, `check passes: ${c.out.trim().split('\n').pop()}`);
-  const g = engineOf(dir);
-  const sql = (a, b) => {
-    g.setHash(`#tools/join/${a}/${b}`);
-    return g.viewTools().replace(/&quot;/g, '"');
-  };
-  const j = sql('refunds', 'accounts');
-  ok(/"order" AS/.test(j), 'reserved table name is quoted in SQL');
-  ok(/ON ol\.order_id = r\.order_id AND ol\.line_no = r\.line_no/.test(j) || / AND [a-z0-9]+\.line_no = /.test(j), 'composite link joins on both columns');
-  const layers = g.viewDiagram('layers');
-  ok(/data-layer="teams"[^>]*>teams<small class="loop">/.test(layers) && /data-layer="players"[^>]*>players<small class="loop">/.test(layers), 'Layers marks the teams ⇄ players loop');
-  const own = g.viewDiagram('ownership');
-  ok(['loop_a', 'loop_b', 'refunds', 'order_lines'].every((n) => own.includes(`>${n}<`)) && /in a cascade loop/.test(own), 'Ownership shows every owned table, cascade loop included');
+let DatabaseSync;
+if (!process.env.TEST_NO_SQLITE) {
+  try {
+    ({ DatabaseSync } = await import('node:sqlite'));
+  } catch {
+    // node:sqlite requires Node 22.5+
+  }
+}
 
-  // change detection
-  const db2 = new DatabaseSync(file);
-  db2.exec(`CREATE TABLE wishlists (id INTEGER PRIMARY KEY, account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE);
-            ALTER TABLE products ADD COLUMN price_cents INTEGER;
-            DROP INDEX live_accounts;`);
-  db2.close();
-  const r2 = cli(dir, 'read', 'app.db');
-  ok(/\+ table wishlists/.test(r2.out) && /\+ column products\.price_cents/.test(r2.out) && /- index accounts\.live_accounts/.test(r2.out), 'change list: new table, new column, dropped index');
-  ok(/Changes since the last read \(3\)/.test(r2.out), 'change list has exactly those 3 lines');
-  ok(/Changes since the last read \(3\)/.test(cli(dir, 'read', '--diff').out), 'read --diff repeats it');
-} catch (err) {
-  sqliteOk = false;
-  ok(false, `SQLite fixture: ${err.message}`);
+let sqliteOk = !!DatabaseSync;
+if (!DatabaseSync) {
+  console.log('SQLite fixture: skipped (needs Node 22.5+)');
+} else {
+  console.log('SQLite fixture');
+  try {
+    const dir = fresh('sqlite');
+    const file = join(dir, 'app.db');
+    const db = new DatabaseSync(file);
+    db.exec(FIXTURE);
+    db.close();
+    const r = cli(dir, 'read', 'app.db');
+    ok(r.code === 0 && /Read 11 tables and 10 links/.test(r.out), `read: 11 tables, 10 links (migrations table skipped) — ${r.out.trim().split('\n').pop()}`);
+    const facts = JSON.parse(readFileSync(join(dir, '.schema-guide/facts.json'), 'utf8'));
+    const t = (n) => facts.tables.find((x) => x.name === n);
+    ok(JSON.stringify(t('accounts').columns.find((c) => c.name === 'status').values) === '["active","suspended"]', 'value list from CHECK … IN');
+    ok(JSON.stringify(t('coupons').columns.find((c) => c.name === 'kind').values) === '["percent","fixed"]', 'value list from CHECK … OR …');
+    ok(t('refunds').foreignKeys[0].columns.length === 2, 'composite link read');
+    ok(t('accounts').indexes.some((i) => i.where) && t('accounts').indexes.some((i) => i.unique), 'partial and unique expression indexes read');
+    ok(cli(dir, 'build').code === 0, 'facts-only build');
+    const c = cli(dir, 'check', ...(BROWSER ? ['--browser'] : []));
+    ok(c.code === 0, `check passes: ${c.out.trim().split('\n').pop()}`);
+    const g = engineOf(dir);
+    const sql = (a, b) => {
+      g.setHash(`#tools/join/${a}/${b}`);
+      return g.viewTools().replace(/&quot;/g, '"');
+    };
+    const j = sql('refunds', 'accounts');
+    ok(/"order" AS/.test(j), 'reserved table name is quoted in SQL');
+    ok(/ON ol\.order_id = r\.order_id AND ol\.line_no = r\.line_no/.test(j) || / AND [a-z0-9]+\.line_no = /.test(j), 'composite link joins on both columns');
+    const layers = g.viewDiagram('layers');
+    ok(/data-layer="teams"[^>]*>teams<small class="loop">/.test(layers) && /data-layer="players"[^>]*>players<small class="loop">/.test(layers), 'Layers marks the teams ⇄ players loop');
+    const own = g.viewDiagram('ownership');
+    ok(['loop_a', 'loop_b', 'refunds', 'order_lines'].every((n) => own.includes(`>${n}<`)) && /in a cascade loop/.test(own), 'Ownership shows every owned table, cascade loop included');
+
+    // change detection
+    const db2 = new DatabaseSync(file);
+    db2.exec(`CREATE TABLE wishlists (id INTEGER PRIMARY KEY, account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE);
+              ALTER TABLE products ADD COLUMN price_cents INTEGER;
+              DROP INDEX live_accounts;`);
+    db2.close();
+    const r2 = cli(dir, 'read', 'app.db');
+    ok(/\+ table wishlists/.test(r2.out) && /\+ column products\.price_cents/.test(r2.out) && /- index accounts\.live_accounts/.test(r2.out), 'change list: new table, new column, dropped index');
+    ok(/Changes since the last read \(3\)/.test(r2.out), 'change list has exactly those 3 lines');
+    ok(/Changes since the last read \(3\)/.test(cli(dir, 'read', '--diff').out), 'read --diff repeats it');
+  } catch (err) {
+    sqliteOk = false;
+    ok(false, `SQLite fixture: ${err.message}`);
+  }
 }
 
 /* ---------- 3. A guide with mistakes is refused ---------- */
