@@ -1,6 +1,6 @@
 {
   "name": "schema-guide",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Turns your database schema into a step-by-step, offline HTML guide: a tour, every table and link in plain words, a pan-and-zoom map, delete impact and join paths. Two commands: build and update.",
   "author": { "name": "A-Piyas-04" },
   "homepage": "https://github.com/A-Piyas-04/schema-guide",

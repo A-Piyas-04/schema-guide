@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0 — unreleased
+
+**An Examples tab on every table page.** Columns and Links state the facts; Examples makes them concrete for someone who has never seen the schema: what `kind` is and what it can hold, what a `mime_type` is, why `duration_ms` is in milliseconds.
+
+- Columns in a few named groups, each one explained in plain words with real-looking example values. A column with a value list shows every allowed value, in order for a flow, with what each one means.
+- Made-up rows showing the table in different situations (a paid order, a basket, an expired one), one at a time, with `NULL` marked. The page says the rows are invented and were not read from the database.
+- Short "what happens when…" stories: a flow of statuses and the values the row ends up with.
+- Written by `build` into `tables.<t>.examples` in `guide.json`, for every table with 5 or more columns, and kept in step by `update`. An older guide gets its examples on the next `update`.
+- `check` holds the examples to the schema: every column they name must exist; a sample value must be one the column's list allows; `NULL` is refused in a `NOT NULL` column; a column may sit in only one group. It warns about columns in no group, sample rows that leave columns out, and tables with 5 or more columns that have no examples yet.
+- Additive: a guide without `examples` renders exactly as before, with no Examples tab and no new warnings. The Columns tab gains one line pointing to Examples when a table has them.
+- The demo's 21 tables all have examples.
+- Fix: `check` looked for `[[table]]` links in the raw JSON of guide.json, so an example pair like `[["101", "Rahim"]]` passed for a broken link. It now reads only the guide's text; a real broken link is still caught.
+
 ## 1.0.0 — 2026-11-23
 
 First release.

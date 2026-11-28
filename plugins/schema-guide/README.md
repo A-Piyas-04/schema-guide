@@ -4,6 +4,7 @@ A Claude Code plugin that turns your database schema into a step-by-step, offlin
 
 - **Tour:** a short guided walk through the whole database.
 - **Explore:** every area and table, with columns, links and indexes in plain words.
+- **Examples:** on each table, what every column holds — grouped, explained without jargon, with real-looking values, made-up sample rows and short "what happens when" stories.
 - **Map:** a pan-and-zoom map of every table, plus dependency layers, ownership trees, the most connected tables and every value list.
 - **Delete impact:** everything one `DELETE` takes with it.
 - **Join path:** the shortest join between any two tables, as SQL (and Kysely or Knex).

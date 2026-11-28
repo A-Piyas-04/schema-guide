@@ -27,7 +27,7 @@ If `.schema-guide/guide.json` doesn't exist, there is nothing to update: say so,
 - If `source.kind` is `inferred`, the schema is a proposal and no database exists. Check first whether one has appeared since (a migration, an ORM model, a `.db` file): if so, read it properly and change `kind`, telling the user the guide now describes something real. If not, refresh the proposal from the code the same way, keep `kind: "inferred"`, and say in your report that it is still a proposal.
 - Never change `kind` from `inferred` to `files` or a database kind unless a real schema now exists.
 - Keep `"enforced": false` on links the database still doesn't enforce, and add it for new ones (a bare id column, anything crossing a service boundary).
-- No changes: still run step 4 (the page template may be newer) and tell the user the schema is unchanged.
+- No changes: still run step 4 (the page template may be newer) and tell the user the schema is unchanged. The note on older guides at the end of step 3 still applies.
 
 ## 3. Edit guide.json, only where the change list points
 
@@ -35,15 +35,17 @@ Read the "On update" part of `${CLAUDE_PLUGIN_ROOT}/reference/guide-format.md`, 
 
 | Change | Edit |
 | --- | --- |
-| `+ table t` | Put it in an area; write its purpose and useful column notes; add it to a tour step or reference topic only if it is a major feature. |
+| `+ table t` | Put it in an area; write its purpose and useful column notes; add it to a tour step or reference topic only if it is a major feature. With 5 or more columns, write its `examples` too. |
 | `- table t` | Remove it from `areas`, `tables`, tour `tables`, reference items, `highlight`, `joinExample`, `hub`; fix sentences that mention it. |
-| `+ column` / `~ column` | Add or fix its note if it isn't obvious; add `values` hints if useful. |
-| `- column` | Remove its note and `highlight` entry; fix sentences that mention it. |
+| `+ column` / `~ column` | Add or fix its note if it isn't obvious; add `values` hints if useful. If the table has `examples`: put the column in a group with what it means, and give it a value in every record (fix the values a changed type or value list no longer allows). |
+| `- column` | Remove its note and `highlight` entry; fix sentences that mention it. Remove it from the table's `examples` groups, records and stories. |
 | `+ index` / `- index` | Add why it exists / remove its entry. |
 | `+ link` / `~ link` / `- link` | Fix sentences that describe the old relationship or delete rule. |
 | `+ check` / `- check` | Add or remove its title in `checks`. |
 
 Keep every other sentence word for word. If the project marks recent additions with `highlight`, add the new names to it.
+
+**A guide from before the Examples tab.** If no table in guide.json has `examples`, write them now for every table with 5 or more columns, following the Examples section of `${CLAUDE_PLUGIN_ROOT}/reference/guide-format.md` and reading the code behind each table as `build` does. This only adds a tab to each table page; no existing sentence changes. Say in the report that you added it.
 
 ## 4. Build and check
 

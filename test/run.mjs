@@ -58,6 +58,9 @@ console.log('Demo example (21 tables, PostgreSQL)');
   g.setHash('#tools/impact/events');
   const impact = text(g.viewTools());
   ok(/6 tables lose rows/.test(impact) && /links can block it/.test(impact), `deleting an event: ${impact.match(/\d+ tables? lose rows/)[0]}`);
+  ok(g.TABLES.every((t) => t.examples), 'every table has an Examples tab');
+  const ex = text(g.viewTable('orders', 'examples'));
+  ok(/18 columns in 5 groups/.test(ex) && /What rows look like/.test(ex) && /What happens when/.test(ex), 'orders/Examples: groups, sample rows and stories');
 }
 
 /* ---------- 2. SQLite fixture ---------- */
@@ -317,7 +320,143 @@ console.log('Inferred schema (no database in the project)');
   ok(/set source.inferredFrom/.test(cli(bare, 'check').out), 'check asks for source.inferredFrom when it is missing');
 }
 
-/* ---------- 7. 300 tables ---------- */
+/* ---------- 7. The Examples tab ---------- */
+console.log('Examples tab');
+{
+  const col = (name, type, notNull, values) => ({ name, type, ...(notNull ? { notNull: true } : {}), ...(values ? { values } : {}) });
+  const MEDIA = {
+    version: 1,
+    source: { kind: 'postgres', name: 'media' },
+    tables: [
+      { name: 'users', columns: [col('id', 'bigint', true), col('email', 'text', true)], primaryKey: ['id'], uniques: [['email']], foreignKeys: [], indexes: [], checks: [] },
+      {
+        name: 'media_assets',
+        columns: [
+          col('id', 'bigint', true),
+          col('owner_id', 'bigint'),
+          col('kind', 'text', true, ['image', 'video']),
+          col('status', 'text', true, ['uploading', 'processing', 'ready', 'failed']),
+          col('mime_type', 'text', true),
+          col('duration_ms', 'integer'),
+          col('meta', 'jsonb'),
+          col('error', 'text'),
+        ],
+        primaryKey: ['id'],
+        uniques: [],
+        foreignKeys: [{ name: 'media_assets_owner_id_fkey', columns: ['owner_id'], table: 'users', refColumns: ['id'], onDelete: 'setnull' }],
+        indexes: [],
+        checks: [],
+      },
+    ],
+  };
+  const reel = { id: 501, owner_id: 101, kind: 'video', status: 'ready', mime_type: 'video/mp4', duration_ms: 60000, meta: { width: 1080, height: 1920 }, error: null };
+  const EXAMPLES = {
+    intro: 'Every upload is a row here.',
+    groups: [
+      // A one-word meaning makes [["101","Rahim"]] in the JSON, which must not read as a [[table]] link.
+      { name: 'Which file', columns: { id: 'The internal number.', owner_id: { means: 'Who uploaded it.', examples: [['101', 'Rahim']] } } },
+      {
+        name: 'What it is',
+        text: '`kind` is what the file is.',
+        columns: {
+          kind: { means: 'What the file is.', examples: { image: 'A photo or diagram', video: 'A Reel or lecture' } },
+          mime_type: { means: 'The file format, as browsers name it (a *MIME type*).', examples: { 'video/mp4': 'an MP4 video', 'image/png': 'a PNG image' } },
+          duration_ms: { means: 'Length in milliseconds.', examples: ['59750'] },
+          meta: 'Width and height.',
+        },
+        table: { head: ['File', 'kind'], rows: [['A Reel', 'video']], prose: [0] },
+      },
+      {
+        name: 'Processing',
+        columns: { status: 'Where processing is.', error: 'Why it failed.' },
+        scenarios: [{ title: 'A video is too long', text: 'Two minutes; the limit is 90 seconds.', values: { status: 'failed', error: 'Video exceeds the maximum allowed duration.' } }],
+      },
+    ],
+    records: [
+      { name: 'A Reel', text: 'Ready to play.', values: reel },
+      { name: 'A failed upload', values: { ...reel, id: 502, status: 'failed', meta: null, error: 'Too long.' } },
+    ],
+    scenarios: [{ title: 'An upload is abandoned', text: ['The app closes.'], steps: ['uploading', 'deleted'], values: { status: 'uploading' } }],
+  };
+  const setup = (name, guide) => {
+    const dir = fresh(name);
+    mkdirSync(join(dir, '.schema-guide'));
+    writeFileSync(join(dir, '.schema-guide/facts.json'), JSON.stringify(MEDIA));
+    writeFileSync(join(dir, '.schema-guide/guide.json'), JSON.stringify(guide));
+    return dir;
+  };
+  const withExamples = (ex) => ({ project: { name: 'Media' }, tables: { media_assets: { purpose: 'One row per upload.', examples: ex }, users: { purpose: 'One row per person.' } } });
+
+  const dir = setup('examples', withExamples(EXAMPLES));
+  ok(cli(dir, 'build').code === 0, 'builds');
+  const c = cli(dir, 'check', ...(BROWSER ? ['--browser'] : []));
+  ok(c.code === 0 && !/warning:/.test(c.out), `check passes with no warnings: ${c.out.trim().split('\n').pop()}`);
+  const g = engineOf(dir);
+  const tab = g.viewTable('media_assets', 'examples');
+  const text = tab.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  ok(/<a href="#table\/media_assets\/examples" aria-current="page">Examples<\/a>/.test(tab), 'the Examples tab is there, after Columns, and marked');
+  ok(g.TABS.map(([k]) => k).join(' ') === 'about columns examples links indexes', 'tab order: About, Columns, Examples, Links, Indexes');
+  ok(/8 columns in 3 groups/.test(text) && /Which file/.test(text) && /What it is/.test(text) && /Processing/.test(text), 'the overview names the groups');
+  ok(/MIME type/.test(text) && /video\/mp4 an MP4 video/.test(text), 'a column shows what it means and its example values with meanings');
+  ok(/Possible values/.test(text) && ['uploading', 'processing', 'ready', 'failed'].every((v) => tab.includes(`<span class="val">${v}</span>`)), 'a column with a value list shows every allowed value, even ones the guide never mentions');
+  ok(/A photo or diagram/.test(text) && /A Reel or lecture/.test(text), 'and the meaning of each one');
+  ok((tab.match(/data-rec="/g) || []).length === 2 && (tab.match(/data-rec-panel="1" hidden/g) || []).length === 1, 'two example rows, one shown at a time');
+  ok(/None of them were read from the database/.test(text), 'the rows are labelled as made up');
+  ok(/class="ex-null">NULL/.test(tab) && /\{&quot;width&quot;:1080,&quot;height&quot;:1920\}/.test(tab), 'NULL and JSON values render as such');
+  ok(/A video is too long/.test(text) && /Video exceeds the maximum allowed duration\./.test(text) && /An upload is abandoned/.test(text), 'group and table stories render with the values they leave');
+  ok(/Not sure what a column holds\?/.test(g.viewTable('media_assets', 'columns')), 'the Columns tab points to Examples');
+  ok(!/#table\/users\/examples/.test(g.viewTable('users', 'about')), 'a table without examples has no Examples tab');
+  ok(/aria-current="page">About</.test(g.viewTable('users', 'examples')), 'and #table/users/examples falls back to About');
+
+  // Guides written before the tab existed: nothing changes, and check doesn't ask for examples.
+  const old = setup('examples-none', { project: { name: 'Media' }, tables: { media_assets: { purpose: 'One row per upload.' } } });
+  ok(cli(old, 'build').code === 0, 'a guide with no examples still builds');
+  const oc = cli(old, 'check');
+  ok(oc.code === 0 && !/examples/.test(oc.out), 'and check does not mention examples');
+  ok(!/\/examples"/.test(engineOf(old).viewTable('media_assets', 'about')), 'and no table shows the tab');
+
+  // Examples have to match the schema, like every other name in the guide.
+  const bad = JSON.parse(JSON.stringify(EXAMPLES));
+  bad.groups[0].columns.nope = 'A column that is not there.';
+  bad.groups[1].columns.kind.examples.audio = 'Not in the list';
+  bad.groups[2].columns.id = 'Again.';
+  bad.records[0].values = { ...reel, status: 'done', mime_type: null };
+  bad.scenarios[0].values = { colour: 'red' };
+  const bd = setup('examples-bad', withExamples(bad));
+  const bc = cli(bd, 'check');
+  ok(bc.code === 1, 'check fails on examples that contradict the schema');
+  ok(/names a column that doesn't exist: nope/.test(bc.out), 'an unknown column in a group');
+  ok(/gives kind the example "audio", but kind only allows \[image, video\]/.test(bc.out), 'an example value outside the list');
+  ok(/id is in two groups/.test(bc.out), 'a column in two groups');
+  ok(/sets status to "done", but status only allows/.test(bc.out), 'a record value outside the list');
+  ok(/sets mime_type to null, but mime_type is NOT NULL/.test(bc.out), 'NULL in a NOT NULL column');
+  ok(/story "An upload is abandoned" names a column that doesn't exist: colour/.test(bc.out), 'an unknown column in a story');
+  ok(cli(bd, 'build').code === 1, 'and build refuses it');
+  const shape = setup('examples-shape', withExamples({ groups: { id: 'not a list' }, records: EXAMPLES.records }));
+  const sc = cli(shape, 'check');
+  ok(sc.code === 1 && /examples\.groups must be a list/.test(sc.out) && !/is not a function/.test(sc.out), 'a group object instead of a list is named, not a crash');
+
+  // Gaps are warnings: they render, but check says what is missing.
+  const thin = JSON.parse(JSON.stringify(EXAMPLES));
+  delete thin.groups[2];
+  thin.groups = thin.groups.filter(Boolean);
+  thin.records[1].values = { id: 502, status: 'failed' };
+  thin.intro = 'Each row belongs to [[no_such_table]].';
+  const facts2 = JSON.parse(JSON.stringify(MEDIA));
+  facts2.tables.push({ name: 'albums', columns: ['id', 'owner_id', 'title', 'cover_id', 'created_at'].map((n) => col(n, 'text', n === 'id')), primaryKey: ['id'], uniques: [], foreignKeys: [], indexes: [], checks: [] });
+  const td = setup('examples-thin', withExamples(thin));
+  writeFileSync(join(td, '.schema-guide/facts.json'), JSON.stringify(facts2));
+  const tc = cli(td, 'check');
+  ok(tc.code === 0, 'incomplete examples still pass');
+  ok(/2 column\(s\) are in no group and show under "Other columns": status, error/.test(tc.out), 'warns about columns in no group');
+  ok(/record "A failed upload" leaves out 6 column\(s\)/.test(tc.out), 'warns about a record that leaves columns out');
+  ok(/1 table\(s\) with 5 or more columns have no examples yet, so they have no Examples tab: albums/.test(tc.out), 'warns about a table with 5+ columns and no examples');
+  ok(/a \[\[no_such_table\]\] link points to a table that doesn't exist/.test(tc.out) && !/\[\["/.test(tc.out), 'a broken [[table]] link in example text is still caught; JSON brackets are not');
+  cli(td, 'build');
+  ok(/Other columns/.test(engineOf(td).viewTable('media_assets', 'examples')), 'ungrouped columns show under "Other columns"');
+}
+
+/* ---------- 8. 300 tables ---------- */
 console.log('300-table schema');
 {
   const dir = fresh('big');
@@ -337,7 +476,7 @@ console.log('300-table schema');
   ok(c.code === 0, `check passes in ${((Date.now() - t0) / 1000).toFixed(1)} s: ${c.out.trim().split('\n').pop()}`);
 }
 
-/* ---------- 8. Real servers, when given ---------- */
+/* ---------- 9. Real servers, when given ---------- */
 for (const [label, url] of [['PostgreSQL', process.env.TEST_PG_URL], ['MySQL', process.env.TEST_MYSQL_URL]]) {
   if (!url) {
     console.log(`${label}: skipped (set TEST_${label === 'MySQL' ? 'MYSQL' : 'PG'}_URL to a scratch database with the fixture schema)`);

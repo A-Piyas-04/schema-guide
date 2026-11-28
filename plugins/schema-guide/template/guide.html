@@ -678,6 +678,55 @@ details.own .tree{margin-top:2px}
   .hub{grid-template-columns:1fr auto}
   .hub .hub-bar{grid-column:1 / -1;order:3}
 }
+/* ---- Examples tab (added) ---- */
+.ex-pointer{margin:0 0 16px}
+.ex-intro{margin-bottom:18px}
+.ex-map{list-style:none;margin:8px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr));gap:10px}
+.ex-map li{min-width:0;overflow-wrap:anywhere;background:var(--surface);border-radius:8px;box-shadow:var(--lift-1);padding:11px 14px}
+.ex-map b{display:flex;justify-content:space-between;gap:10px;font-size:.96rem}
+.ex-map b small{font-weight:600;color:var(--muted)}
+.ex-map span{display:block;margin-top:3px;font-family:var(--mono);font-size:.76rem;line-height:1.5;color:var(--ink-2)}
+.ex-group{margin-top:40px}
+.ex-group > h2{display:flex;align-items:baseline;gap:10px;padding-bottom:10px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.ex-group > h2 small{margin-left:auto;flex:none;font-size:.88rem;font-weight:600;color:var(--muted)}
+.ex-group > p{color:var(--ink-2)}
+.ex-cols{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.ex-cols > li{min-width:0;overflow-wrap:anywhere;background:var(--surface);border-radius:8px;box-shadow:var(--lift-1);padding:14px 18px}
+.ex-cols > li > p{margin:6px 0 0;color:var(--ink-2)}
+.ex-cols .vals{margin-top:2px}
+.ex-label{margin:12px 0 6px;font-size:.8rem;font-weight:600;color:var(--muted)}
+.ex-cols > li > p.ex-inline{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;margin:10px 0 0}
+.ex-inline .ex-label{margin:0 4px 0 0}
+.ex-inline code{max-width:100%;overflow-wrap:anywhere}
+.ex-vals{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.ex-vals li{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:2px 12px;align-items:baseline}
+.ex-vals code{justify-self:start;max-width:100%;overflow-wrap:anywhere}
+.ex-vals span{color:var(--ink-2);font-size:.94rem}
+.ex-cols .ex-list-note{margin:8px 0 0;font-size:.86rem}
+/* Names in a group's table stay whole (no "subtotal_ce / nts"); the prose column wraps, and a table too wide for a phone scrolls inside its box. */
+.ex-demo{max-width:none;margin-top:14px;overflow-x:auto}
+.ex-demo td{overflow-wrap:normal}
+.ex-table td{overflow-wrap:anywhere}
+.ex-ways{margin:14px 0 14px}
+.ex-rec > h3{margin:14px 0 6px}
+.ex-rec > p{margin:0 0 12px;color:var(--ink-2)}
+.ex-table{max-width:none}
+.ex-table td:first-child{width:38%;color:var(--ink-2)}
+.ex-null{font-family:var(--mono);font-size:.86em;font-style:italic;color:var(--muted)}
+.ex-json{font-size:.84em}
+.ex-story{min-width:0;overflow-wrap:anywhere;background:var(--surface);border-radius:8px;box-shadow:var(--lift-1);padding:16px 20px;margin-top:12px}
+.ex-story h3{margin:0 0 8px}
+.ex-story p{margin:0 0 8px;color:var(--ink-2)}
+.ex-story .flow{margin:12px 0 4px}
+.ex-set{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:4px 16px;margin:0;padding:10px 14px;border-radius:6px;background:var(--bg);font-family:var(--mono);font-size:.86rem}
+.ex-set dt{color:var(--ink-2)}
+.ex-set dd{margin:0;min-width:0;overflow-wrap:anywhere}
+@media (max-width:560px){
+  /* A value and its meaning flow as one line of text instead of two columns. */
+  .ex-vals li{display:block}
+  .ex-vals span{margin-left:8px}
+  .ex-table td:first-child{width:42%}
+}
 </style>
 </head>
 <body>
@@ -859,6 +908,10 @@ function autoPurpose(ft) {
   return 'Not described yet.';
 }
 const NULLABLE = new Set();
+/** A table gets the Examples tab only when its guide entry has something to put in it. */
+function hasExamples(ex) {
+  return !!ex && typeof ex === 'object' && ['groups', 'records', 'scenarios'].some((k) => Array.isArray(ex[k]) && ex[k].length);
+}
 const TABLES = (() => {
   const g = GUIDE.tables || {};
   const hlTables = new Set(HL.tables || []);
@@ -901,6 +954,8 @@ const TABLES = (() => {
       notes: (gt.notes || []).map(md),
       checks,
       isNewTable: hlTables.has(name),
+      // The Examples tab's text, kept raw: it is rendered on demand. Null when the guide has none.
+      examples: hasExamples(gt.examples) ? gt.examples : null,
     };
   });
 })();
@@ -1238,6 +1293,7 @@ function viewArea(id) {
 const TABS = [
   ['about', 'About'],
   ['columns', 'Columns'],
+  ['examples', 'Examples'],
   ['links', 'Links'],
   ['indexes', 'Indexes'],
 ];
@@ -1245,18 +1301,20 @@ const TABS = [
 function viewTable(name, tab = 'about') {
   const t = byName[name];
   if (!t) return viewNotFound();
-  if (!TABS.some(([key]) => key === tab)) tab = 'about';
+  // Examples is the one tab a table can lack: only tables whose guide has examples show it.
+  const tabs = TABS.filter(([key]) => key !== 'examples' || t.examples);
+  if (!tabs.some(([key]) => key === tab)) tab = 'about';
   const d = domainById[t.domain];
   const idx = INDEXES.filter((i) => i.t.includes(t.name));
   const linkCount = outOf(name).length + into(name).length;
-  const label = { about: 'About', columns: `Columns (${t.columns.length})`, links: `Links (${linkCount})`, indexes: `Indexes (${idx.length})` };
-  const panel = { about: panelAbout, columns: panelColumns, links: panelLinks, indexes: panelIndexes }[tab](t, idx);
-  const nextTab = TABS[TABS.findIndex(([key]) => key === tab) + 1];
+  const label = { about: 'About', columns: `Columns (${t.columns.length})`, examples: 'Examples', links: `Links (${linkCount})`, indexes: `Indexes (${idx.length})` };
+  const panel = { about: panelAbout, columns: panelColumns, examples: panelExamples, links: panelLinks, indexes: panelIndexes }[tab](t, idx);
+  const nextTab = tabs[tabs.findIndex(([key]) => key === tab) + 1];
   return `<section>
     ${crumbs([['Explore', '#explore'], [d.name, `#explore/${d.id}`], [t.name]])}
     <h1 class="table-title">${t.name}</h1>
     <p class="lede">${t.purpose}</p>
-    <nav class="tabs" aria-label="About this table">${TABS.map(
+    <nav class="tabs" aria-label="About this table">${tabs.map(
       ([key]) => `<a href="#table/${name}/${key}"${key === tab ? ' aria-current="page"' : ''}>${label[key]}</a>`,
     ).join('')}</nav>
     ${panel}
@@ -1296,7 +1354,10 @@ function keyPills(c, t) {
 }
 
 function panelColumns(t) {
-  return `<ul class="cols">${t.columns
+  const pointer = t.examples
+    ? `<p class="hint ex-pointer">Not sure what a column holds? <a href="#table/${t.name}/examples">Examples</a> explains each one in plain words, with sample values and rows.</p>`
+    : '';
+  return `${pointer}<ul class="cols">${t.columns
     .map(
       (c) =>
         `<li><div class="col-head"><span class="t">${c.n}</span><span class="type">${esc(c.t || '')}</span>${keyPills(c, t)}</div>${c.note ? `<p>${c.note}</p>` : ''}</li>`,
@@ -1336,6 +1397,141 @@ function panelIndexes(t, idx) {
     .map((i) => `<li><div class="col-head"><b>${i.purpose}</b>${i.isNew ? `<span class="pill new">${HL.label}</span>` : ''}</div><p><code>${esc(i.idx)}</code></p></li>`)
     .join('')}</ul>`;
 }
+
+/* ============================================================
+   Examples (added): the table's columns in plain words, grouped,
+   with the values they hold; made-up rows showing different
+   situations; and short "what happens when" stories.
+   Shown only for tables whose guide has `examples`.
+   ============================================================ */
+/** A sample value: NULL stands out, JSON stays JSON, everything else is plain text. */
+function exValue(v) {
+  if (v === null) return '<span class="ex-null">NULL</span>';
+  if (typeof v === 'object') return `<code class="ex-json">${escHtml(JSON.stringify(v))}</code>`;
+  return escHtml(String(v));
+}
+/** `examples` on a column: ["a", "b"], [["a", "meaning"]], or { "a": "meaning" }. */
+function exPairs(given) {
+  if (!given) return [];
+  if (Array.isArray(given)) return given.map((x) => (Array.isArray(x) ? [String(x[0]), x[1] || ''] : [String(x), '']));
+  if (typeof given === 'object') return Object.entries(given).map(([v, m]) => [v, m || '']);
+  return [[String(given), '']];
+}
+function exColumn(t, c, entry, list) {
+  const e = typeof entry === 'string' ? { means: entry } : entry || {};
+  const pairs = exPairs(e.examples);
+  const meaningOf = (v) => (pairs.find(([x]) => x === v) || [])[1] || '';
+  const means = e.means ? md(e.means) : c.note;
+  const row = ([v, m]) => `<li><code>${escHtml(v)}</code>${m ? `<span>${md(m)}</span>` : ''}</li>`;
+  let vals = '';
+  if (list) {
+    // A value list from the schema (or the guide's own list): show every value, never a sample of them.
+    const chipsHtml = `<div class="vals">${list.values
+      .map((v, i) => `${i && list.flow ? `<i>${list.seps[i - 1] || '→'}</i>` : ''}<span class="val">${esc(v.v)}</span>`)
+      .join('')}</div>`;
+    const meant = list.values.map((v) => [v.v, meaningOf(v.v) || v.hint]).filter(([, m]) => m);
+    // The chips carry the order of a flow, and name the values nobody explained; otherwise the list says it all.
+    const showChips = list.flow || meant.length < list.values.length;
+    vals = `<p class="ex-label">${list.flow ? 'Moves through' : 'Possible values'}</p>${showChips ? chipsHtml : ''}${
+      meant.length ? `<ul class="ex-vals">${meant.map(row).join('')}</ul>` : ''
+    }${list.hint ? `<p class="hint ex-list-note">${md(list.hint)}</p>` : ''}`;
+  } else if (pairs.length && pairs.every(([, m]) => !m)) {
+    vals = `<p class="ex-inline"><span class="ex-label">For example</span>${pairs.map(([v]) => `<code>${escHtml(v)}</code>`).join('')}</p>`;
+  } else if (pairs.length) {
+    vals = `<p class="ex-label">For example</p><ul class="ex-vals">${pairs.map(row).join('')}</ul>`;
+  }
+  return `<li><div class="col-head"><span class="t">${c.n}</span><span class="type">${esc(c.t || '')}</span>${keyPills(c, t)}</div>${means ? `<p>${means}</p>` : ''}${vals}</li>`;
+}
+function exStory(s) {
+  const paras = (Array.isArray(s.text) ? s.text : [s.text]).filter(Boolean);
+  const set = s.values && Object.keys(s.values).length
+    ? `<p class="ex-label">The row then holds</p><dl class="ex-set">${Object.entries(s.values)
+        .map(([c, v]) => `<dt>${escHtml(c)}</dt><dd>${exValue(v)}</dd>`)
+        .join('')}</dl>`
+    : '';
+  return `<div class="ex-story">${s.title ? `<h3>${md(s.title)}</h3>` : ''}${paras.map((p) => `<p>${md(p)}</p>`).join('')}${
+    s.steps && s.steps.length ? flow(s.steps.map(md)) : ''
+  }${set}</div>`;
+}
+function panelExamples(t) {
+  const ex = t.examples;
+  const list = (x) => (Array.isArray(x) ? x : []);
+  const lists = new Map(valueLists().filter((l) => l.table === t.name).map((l) => [l.column, l]));
+  const byCol = new Map(t.columns.map((c) => [c.n, c]));
+  // Each column in at most one group, in the order the guide gives; the rest go to "Other columns".
+  const placed = new Set();
+  const groups = list(ex.groups)
+    .map((g) => {
+      const cols = Object.keys(g.columns || {}).filter((n) => byCol.has(n) && !placed.has(n));
+      cols.forEach((n) => placed.add(n));
+      return { name: g.name ? md(g.name) : 'Columns', text: g.text, cols, entries: g.columns || {}, table: g.table, scenarios: list(g.scenarios) };
+    })
+    .filter((g) => g.cols.length || g.scenarios.length);
+  if (groups.length) {
+    const rest = t.columns.map((c) => c.n).filter((n) => !placed.has(n));
+    if (rest.length) groups.push({ name: 'Other columns', text: '', cols: rest, entries: {}, table: null, scenarios: [] });
+  }
+  const intro = ex.intro
+    ? `<p class="lede ex-intro">${md(ex.intro)}</p>`
+    : `<p class="lede ex-intro">What each column holds, in plain words, with the kind of values you will find in it.</p>`;
+  const overview = groups.length
+    ? `<p class="hint">${count(t.columns.length, 'column', 'columns')} in ${count(groups.length, 'group', 'groups')}:</p>
+      <ul class="ex-map">${groups
+        .map((g) => `<li><b>${g.name}<small>${g.cols.length}</small></b><span>${g.cols.join(', ')}</span></li>`)
+        .join('')}</ul>`
+    : '';
+  const groupHtml = groups
+    .map((g) => {
+      const text = (Array.isArray(g.text) ? g.text : [g.text]).filter(Boolean).map((p) => `<p>${md(p)}</p>`).join('');
+      const cols = g.cols.length
+        ? `<ul class="ex-cols">${g.cols.map((n) => exColumn(t, byCol.get(n), g.entries[n], lists.get(n))).join('')}</ul>`
+        : '';
+      const table = g.table ? `<div class="demo ex-demo">${demoTable(g.table)}</div>` : '';
+      return `<section class="ex-group"><h2>${g.name}<small>${count(g.cols.length, 'column', 'columns')}</small></h2>${text}${cols}${table}${g.scenarios.map(exStory).join('')}</section>`;
+    })
+    .join('');
+  const recs = list(ex.records).filter((r) => r && r.values && typeof r.values === 'object');
+  const order = t.columns.map((c) => c.n);
+  const recHtml = recs.length
+    ? `<section class="ex-group"><h2>What rows look like<small>${count(recs.length, 'example', 'examples')}</small></h2>
+      <p class="hint">Made-up rows that show what the columns hold in different situations. None of them were read from the database. <span class="ex-null">NULL</span> means the column is empty in that row.</p>
+      ${recs.length > 1
+        ? `<div class="ways ex-ways" role="tablist" aria-label="Example rows">${recs
+            .map((r, i) => `<button type="button" class="way" role="tab" data-rec="${i}" aria-selected="${i === 0}"><b>${md(r.name || `Row ${i + 1}`)}</b></button>`)
+            .join('')}</div>`
+        : ''}
+      ${recs
+        .map((r, i) => {
+          const cols = order.filter((n) => Object.prototype.hasOwnProperty.call(r.values, n));
+          return `<div class="ex-rec" data-rec-panel="${i}"${i ? ' hidden' : ''}>${recs.length === 1 && r.name ? `<h3>${md(r.name)}</h3>` : ''}${r.text ? `<p>${md(r.text)}</p>` : ''}
+            <div class="demo ex-table"><table><thead><tr><th>Column</th><th>Value</th></tr></thead><tbody>${cols
+              .map((n) => `<tr><td>${n}</td><td>${exValue(r.values[n])}</td></tr>`)
+              .join('')}</tbody></table></div></div>`;
+        })
+        .join('')}
+    </section>`
+    : '';
+  const stories = list(ex.scenarios).filter(Boolean);
+  const storyHtml = stories.length
+    ? `<section class="ex-group"><h2>What happens when…<small>${count(stories.length, 'story', 'stories')}</small></h2>${stories.map(exStory).join('')}</section>`
+    : '';
+  return `${intro}${overview}${groupHtml}${recHtml}${storyHtml}`;
+}
+/* The example-row switcher on the Examples tab. */
+document.addEventListener('click', (event) => {
+  const button = event.target.closest && event.target.closest('[data-rec]');
+  if (!button) return;
+  const box = button.closest('.ex-group');
+  box.querySelectorAll('[data-rec]').forEach((b) => b.setAttribute('aria-selected', String(b === button)));
+  box.querySelectorAll('[data-rec-panel]').forEach((p) => {
+    p.hidden = p.dataset.recPanel !== button.dataset.rec;
+    if (!p.hidden) {
+      p.classList.remove('panel-in');
+      void p.offsetWidth;
+      p.classList.add('panel-in');
+    }
+  });
+});
 
 /* ============================================================
    Reference: one topic per page

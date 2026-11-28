@@ -68,6 +68,7 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/guide-format.md` first. Then read the code
 - `project`: name, the source of truth (e.g. "the SQL files in `db/migrations/`"), `code: ["sql", "kysely"]` if the project uses Kysely (or `knex`).
 - `areas`: 4–12 groups, every table in exactly one.
 - `tables`: a one-line `purpose` for every table; column notes only where they add something.
+- `tables.<t>.examples`: the table's **Examples** tab, for every table with 5 or more columns. Group the columns, say what each one holds in plain words (explain any jargon), give real-looking example values, 2–4 made-up rows that show different situations, and 1–3 short "what happens when" stories. Follow the Examples section of `guide-format.md`. Invent the values, but take what *happens* to them (limits, jobs, who sets what) from the code; never copy real rows or anyone's personal data.
 - `values`: value lists kept in application code, not in the database.
 - `indexes`: why each index exists, when the code shows it.
 - `tour`: 8–15 steps, one idea each.

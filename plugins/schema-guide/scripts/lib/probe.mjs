@@ -38,9 +38,12 @@ window.addEventListener('load', () => {
   st.textContent = '*{transition:none!important;animation:none!important}';
   document.head.appendChild(st);
   const t0 = TABLES[0].name, a0 = DOMAINS[0].id;
+  // The Examples tab exists only on tables whose guide has examples; check the one with the most.
+  const tx = TABLES.filter((t) => t.examples).sort((a, b) => JSON.stringify(b.examples).length - JSON.stringify(a.examples).length).map((t) => t.name)[0];
   const routes = [
     ['#home', 'Home'], ['#tour/1', 'Tour'], ['#explore', 'Explore'], ['#explore/' + a0, 'Explore'],
     ['#table/' + t0 + '/about', 'Explore', 'About'], ['#table/' + t0 + '/columns', 'Explore'], ['#table/' + t0 + '/links', 'Explore'], ['#table/' + t0 + '/indexes', 'Explore'],
+    ...(tx ? [['#table/' + tx + '/examples', 'Explore', 'Examples']] : []),
     ['#ref', 'Reference'], ...REF.map(([id]) => ['#ref/' + id, 'Reference']),
     ['#tools', 'Tools', null, ''], ['#tools/impact/' + DEFAULT_IMPACT, 'Tools', null, 'Delete impact'], ['#tools/join/' + DEFAULT_JOIN.join('/'), 'Tools', null, 'Join path'],
     ['#diagram', 'Tools', 'Areas', 'Map'], ['#diagram/all', 'Tools', 'Every table', 'Map'], ['#diagram/' + a0, 'Tools', 'Areas', 'Map'],

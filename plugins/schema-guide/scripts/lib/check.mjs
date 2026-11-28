@@ -138,6 +138,8 @@ export function validate(facts, guide, errors, warnings) {
     }
   }
 
+  validateExamples(facts, guide, hasColumn, need, warnings);
+
   (guide.tour || []).forEach((s, i) => {
     for (const n of s.tables || []) need(hasTable(n), `tour step ${i + 1} names a table that doesn't exist: ${n}`);
   });
@@ -155,9 +157,86 @@ export function validate(facts, guide, errors, warnings) {
     }
   }
 
-  // [[table]] links anywhere in the guide text
-  const text = JSON.stringify(guide);
-  for (const m of text.matchAll(/\[\[([^\]\s]+)\]\]/g)) if (!hasTable(m[1])) warnings.push(`a [[${m[1]}]] link points to a table that doesn't exist.`);
+  // [[table]] links anywhere in the guide text. Only the strings are read: the JSON around them
+  // has its own double brackets (an example pair like [["101", "Rahim"]]) that are not links.
+  const strings = [];
+  const collect = (v) => {
+    if (typeof v === 'string') strings.push(v);
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) collect(x);
+  };
+  collect(guide);
+  for (const s of strings) for (const m of s.matchAll(/\[\[([^\]\s]+)\]\]/g)) if (!hasTable(m[1])) warnings.push(`a [[${m[1]}]] link points to a table that doesn't exist.`);
+}
+
+/* ---------------- the Examples tab against the facts ---------------- */
+// The sample values are made up, but they must still be values the schema could hold:
+// a real column, a listed value where the column has a list, and never NULL in a NOT NULL column.
+export const EXAMPLES_MIN_COLUMNS = 5;
+function validateExamples(facts, guide, hasColumn, need, warnings) {
+  const gt = guide.tables || {};
+  const missing = [];
+  let any = false;
+  for (const ft of facts.tables) {
+    const ex = (gt[ft.name] || {}).examples;
+    if (!ex || typeof ex !== 'object') {
+      if (ft.columns.length >= EXAMPLES_MIN_COLUMNS) missing.push(ft.name);
+      continue;
+    }
+    any = true;
+    const where = `guide.tables.${ft.name}.examples`;
+    const arr = (x) => (Array.isArray(x) ? x : []);
+    for (const k of ['groups', 'records', 'scenarios']) need(ex[k] == null || Array.isArray(ex[k]), `${where}.${k} must be a list`);
+    const col = (c) => ft.columns.find((x) => x.name === c);
+    const listOf = (c) => {
+      const db = (col(c) || {}).values;
+      const gv = (guide.values || {})[`${ft.name}.${c}`];
+      return db && db.length ? db.map(String) : gv && gv.values && gv.values.length ? gv.values.map(String) : null;
+    };
+    const named = (c, what) => need(hasColumn(`${ft.name}.${c}`), `${where} ${what} names a column that doesn't exist: ${c}`);
+    const values = (vals, what) => {
+      if (!vals) return;
+      if (typeof vals !== 'object' || Array.isArray(vals)) return need(false, `${where} ${what}: "values" must be an object of column → value`);
+      for (const [c, v] of Object.entries(vals)) {
+        if (!named(c, what)) continue;
+        if (v === null) {
+          need(!col(c).notNull, `${where} ${what} sets ${c} to null, but ${c} is NOT NULL`);
+          continue;
+        }
+        const list = listOf(c);
+        if (list && typeof v !== 'object') need(list.includes(String(v)), `${where} ${what} sets ${c} to "${v}", but ${c} only allows [${list.join(', ')}]`);
+      }
+    };
+    const grouped = new Map();
+    arr(ex.groups).forEach((g, i) => {
+      const what = `group "${g.name || i + 1}"`;
+      for (const [c, entry] of Object.entries(g.columns || {})) {
+        if (!named(c, what)) continue;
+        need(!grouped.has(c), `${where}: ${c} is in two groups, "${grouped.get(c)}" and "${g.name || i + 1}"`);
+        grouped.set(c, g.name || i + 1);
+        const given = entry && typeof entry === 'object' ? entry.examples : null;
+        const list = listOf(c);
+        if (given && list) {
+          const vs = Array.isArray(given) ? given.map((x) => String(Array.isArray(x) ? x[0] : x)) : Object.keys(given);
+          for (const v of vs) need(list.includes(v), `${where} ${what} gives ${c} the example "${v}", but ${c} only allows [${list.join(', ')}]`);
+        }
+      }
+      for (const s of arr(g.scenarios)) values(s.values, `${what} story "${s.title}"`);
+    });
+    if (arr(ex.groups).length) {
+      const left = ft.columns.map((c) => c.name).filter((c) => !grouped.has(c));
+      if (left.length) warnings.push(`${where}: ${left.length} column(s) are in no group and show under "Other columns": ${left.join(', ')}`);
+    }
+    arr(ex.records).forEach((r, i) => {
+      const what = `record "${r.name || i + 1}"`;
+      values(r.values, what);
+      const out = ft.columns.map((c) => c.name).filter((c) => !Object.prototype.hasOwnProperty.call(r.values || {}, c));
+      if (out.length) warnings.push(`${where} ${what} leaves out ${out.length} column(s): ${out.join(', ')}. Give every column, null where it is empty.`);
+    });
+    for (const s of arr(ex.scenarios)) values(s.values, `story "${s.title}"`);
+  }
+  if (any && missing.length) {
+    warnings.push(`${missing.length} table(s) with ${EXAMPLES_MIN_COLUMNS} or more columns have no examples yet, so they have no Examples tab: ${missing.join(', ')}`);
+  }
 }
 
 /* ---------------- every page, rendered in Node ---------------- */

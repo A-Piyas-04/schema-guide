@@ -76,18 +76,26 @@ Click any table in that list to drop it into the middle of its own map — what 
 
 ![The events table at the centre of its own map: 3 tables it points to, 8 pointing to it](docs/screenshots/hubs-table.png)
 
-Plus **Explore** (every area and table, with columns, links, indexes and rules in plain words), **Reference** (every link, index and rule, one topic per page), and five more map views: areas, dependency layers, ownership trees, and every value list. Opens in light mode, with a dark toggle that each reader's browser remembers. Keyboard-navigable, and sized for a phone as well as a desktop.
+### Examples — what each column actually holds
+
+A table with eighteen columns tells a newcomer very little by name alone. What can `status` be? What is a `mime_type`, or `fee_bps`? Every table's **Examples** tab answers that in plain words: its columns in a few groups, what each one means (jargon explained), the values it really holds, made-up rows showing the table in different situations, and short "what happens when…" stories that show a row changing.
+
+![The Examples tab for orders: columns grouped, each one explained, with every allowed status and what it means](docs/screenshots/examples.png)
+
+A column with a value list shows every allowed value, read from the database. The sample rows are labelled as made up, and `check` refuses any that the schema couldn't hold: a value outside a column's list, or `NULL` in a `NOT NULL` column.
+
+Plus **Explore** (every area and table, with columns, examples, links, indexes and rules in plain words), **Reference** (every link, index and rule, one topic per page), and five more map views: areas, dependency layers, ownership trees, and every value list. Opens in light mode, with a dark toggle that each reader's browser remembers. Keyboard-navigable, and sized for a phone as well as a desktop.
 
 Three files land in your project: `docs/schema-guide.html` (the page), `.schema-guide/facts.json` (the schema) and `.schema-guide/guide.json` (the words — yours to edit). Commit all three.
 
-**One thing to be clear about.** The structure is read, not guessed: tables, columns, keys, delete rules and indexes come from introspecting your database, and `check` fails the build if the prose names anything that isn't there. The *explanations* around that structure — what a table is for, what a column means, which tables belong together — are Claude's reading of your code, and Claude can misread code. Treat the guide as a well-informed colleague's write-up rather than a specification: worth trusting to learn from, worth verifying before you depend on it. Every page says so in its footer, and corrections go in `guide.json`, where the next `update` will leave them alone.
+**One thing to be clear about.** The structure is read, not guessed: tables, columns, keys, delete rules and indexes come from introspecting your database, and `check` fails the build if the prose names anything that isn't there. The *explanations* around that structure — what a table is for, what a column means, which tables belong together — are Claude's reading of your code, and Claude can misread code. Treat the guide as a well-informed colleague's write-up rather than a specification: worth trusting to learn from, worth verifying before you depend on it. Every page says so in its footer, and corrections go in `guide.json`, where the next `update` will leave them alone. The sample rows on the Examples tabs are invented to show the shape of the data, and the page says so: none of them are read from your database.
 
 ## How it works
 
 The schema and the prose are kept apart, which is what makes updates safe:
 
 - A zero-dependency CLI reads the real database — PostgreSQL, MySQL/MariaDB or SQLite — into `facts.json`. Tables, columns, keys, foreign keys with their delete rules, indexes, CHECKs and value lists. Nothing leaves your machine.
-- Claude reads your code and writes `guide.json`: the areas, the one-line purpose of every table, the column notes that aren't obvious, the tour.
+- Claude reads your code and writes `guide.json`: the areas, the one-line purpose of every table, the column notes that aren't obvious, the tour, and each table's Examples tab.
 - The CLI renders both into the page, then checks the result: every name in the prose must exist in the schema, every page must render, and no two boxes on a map may overlap.
 
 On `update`, the CLI diffs the new schema against the last one and prints exactly what changed. Claude rewords only those parts, so your wording stays put.
